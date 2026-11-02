@@ -1,0 +1,211 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # The release workflow runs all of this before it publishes anything.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Webkit, tray and bundling libraries the Tauri app needs on Ubuntu.
+  LINUX_DESKTOP_PACKAGES: >-
+    build-essential file patchelf libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
+    librsvg2-dev libssl-dev libxdo-dev
+
+jobs:
+  # The helper: vet and test on each OS it supports.
+  go:
+    name: Go (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      # Tests that need root (network namespaces, netlink) skip without it. The
+      # hosted runner allows sudo, so run them too; a failure here is reported
+      # without blocking the rest.
+      - name: go test as root
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: sudo -E env "PATH=$PATH" go test ./...
+
+  # The Tauri app: webview checks, then the Rust shell, on each OS.
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install Tauri system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends $LINUX_DESKTOP_PACKAGES
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      # The generated types come from the helper's Go types, same on every OS.
+      - name: Generated types are current
+        if: runner.os == 'Linux'
+        run: pnpm check:types
+      # The Rust shell embeds the exported webview, so it must exist first.
+      - run: pnpm build
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        working-directory: desktop/src-tauri
+        run: cargo test
+
+  # The Windows installer, one per architecture, with the staged helper and
+  # wintun.dll. arm64 is cross-built on the x64 runner.
+  windows-bundle:
+    name: Windows installer (${{ matrix.arch }})
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            goarch: amd64
+            triple: x86_64-pc-windows-msvc
+          - arch: arm64
+            goarch: arm64
+            triple: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: ${{ matrix.triple }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop/src-tauri
+          key: ${{ matrix.triple }}
+      # The wintun zip is checked against its pinned SHA-256 on every use, so the
+      # cache only saves the download.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/wintun-cache
+          key: wintun-0.14.1
+      # routewise.exe and wintun.dll into the folder the bundle takes resources from.
+      - name: Stage the helper
+        shell: bash
+        env:
+          COMMIT: ${{ github.sha }}
+          WINTUN_CACHE_DIR: ${{ runner.temp }}/wintun-cache
+        run: bash scripts/stage-windows-desktop-helper.sh ${{ matrix.goarch }}
+      - name: Install web dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+      - name: Build the installer
+        working-directory: desktop
+        run: pnpm tauri build --bundles nsis --target ${{ matrix.triple }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: routewise-windows-${{ matrix.arch }}
+          path: desktop/src-tauri/target/${{ matrix.triple }}/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  # The Linux packages: a .deb and an AppImage.
+  # Built on the oldest supported Ubuntu: the packages link the build host's
+  # glibc, so they run on that release and anything newer.
+  linux-bundle:
+    name: Linux packages
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      # The AppImage tools are AppImages themselves; the runner has no FUSE.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install Tauri system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends $LINUX_DESKTOP_PACKAGES
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Stage the helper
+        run: make stage-desktop-helper-linux COMMIT=${{ github.sha }}
+      - name: Install web dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+      - name: Build the packages
+        working-directory: desktop
+        run: pnpm tauri build --bundles deb,appimage
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: routewise-linux-x64
+          path: |
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error

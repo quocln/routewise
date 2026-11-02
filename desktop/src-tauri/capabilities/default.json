@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the main window's webview uses: its own commands (always allowed), event listening, and the app version.",
+  "windows": ["main"],
+  "permissions": ["core:app:allow-version", "core:event:allow-listen", "core:event:allow-unlisten"]
+}

@@ -1,0 +1,62 @@
+# RouteWise Configuration
+# Copy to ~/.routewise/config.yaml (or /Library/Application Support/RouteWise/config.yaml)
+# and replace the example domains with your own.
+
+# Domain patterns to route through the VPN.
+#   Exact names ("api.example.com") are resolved up front and re-resolved
+#   every cache_ttl.
+#   Wildcards ("*.internal.example.com", "qa*.example.com") match exactly one
+#   label and are routed as each name is looked up: while the VPN is connected,
+#   RouteWise writes /etc/resolver/<domain> so lookups under that domain pass
+#   through its local DNS forwarder, which routes every answer before
+#   returning it. Apps that use their own DNS-over-HTTPS (for example Chrome's
+#   "Secure DNS") bypass this and are not routed for wildcard names.
+domains:
+  - pattern: "example.com"
+  - pattern: "api.example.com"
+  - pattern: "gateway.example.com"
+  # Staging / development
+  # - pattern: "staging.example.com"
+  # - pattern: "dev.example.com"
+  # Internal services
+  # - pattern: "jenkins.internal.example.com"
+  # - pattern: "*.internal.example.com"
+
+# Routing behavior
+routing:
+  # How RouteWise coexists with the VPN client:
+  #   "inverted" (default) - removes the VPN catch-all routes so only the
+  #                          configured domains go through the VPN
+  #   "additive"           - keeps the VPN routes intact and only adds host
+  #                          routes alongside them
+  mode: "inverted"
+
+# DNS resolver settings
+dns:
+  # DNS servers used to resolve the domains above. All servers are queried and
+  # the results merged, which keeps CDN/GeoDNS answers (e.g. CloudFront) usable.
+  # The wildcard forwarder instead starts with the first one and also asks the
+  # next if there is no reply after 200ms, so list your preferred server first.
+  servers:
+    - "8.8.8.8"
+    - "1.1.1.1"
+  # Cache TTL in seconds (5 minutes default - handles CloudFront IP rotation)
+  cache_ttl: 300
+  # Resolve through the DNS servers the VPN pushes while it is connected. Turn
+  # this on when your domains only exist in the company's internal DNS; the
+  # servers above stay as the fallback. The VPN's DNS servers are routed
+  # through the tunnel either way, so they stay reachable after the default
+  # route moves back to your local network. The app's Settings tab has a
+  # switch for this.
+  use_vpn_dns: false
+
+# Daemon settings
+daemon:
+  # VPN interface polling interval in seconds
+  poll_interval: 1
+  # PID file location (requires root for /var/run)
+  pid_file: "/var/run/routewise.pid"
+  # Log file location
+  log_file: "/var/log/routewise.log"
+  # Log level: debug, info, warn, error
+  log_level: "info"

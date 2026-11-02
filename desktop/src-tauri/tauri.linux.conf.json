@@ -1,0 +1,13 @@
+{
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "linux": {
+      "deb": {
+        "depends": ["pkexec | policykit-1"],
+        "recommends": ["systemd-resolved"],
+        "postInstallScript": "linux/postinst.sh",
+        "preRemoveScript": "linux/prerm.sh"
+      }
+    }
+  }
+}

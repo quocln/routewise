@@ -1,0 +1,4 @@
+/target/
+/gen/
+# Staged by `make stage-desktop-helper`; never committed.
+/resources/

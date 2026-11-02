@@ -1,0 +1,46 @@
+# RouteWise Configuration
+#
+# These are starter defaults. RouteWise only installs this file when no
+# configuration exists yet; an existing configuration is never overwritten.
+# Edit your domains in the RouteWise app, or with `routewise add-domain`.
+
+# Domain patterns to route through the VPN (one per line)
+# Wildcards match exactly one label: "*.example.com" matches api.example.com,
+# not example.com or a.b.example.com.
+domains:
+  - example.com
+  - api.example.com
+  - gateway.example.com
+
+# Routing behavior
+routing:
+  # How RouteWise coexists with the VPN client:
+  #   "inverted" (default) - removes VPN catch-all routes, only configured domains go through VPN
+  #   "additive"           - keeps VPN routes intact, adds /32 routes alongside
+  mode: "inverted"
+
+# DNS resolver settings
+dns:
+  # DNS servers to use for domain resolution
+  # All servers are queried and IPs merged (handles CDN/GeoDNS like CloudFront)
+  servers:
+    - "1.1.1.1"
+    - "8.8.8.8"
+  # Cache TTL in seconds (5 minutes default - handles CloudFront IP rotation)
+  cache_ttl: 300
+  # Resolve through the DNS servers the VPN pushes while it is connected. Turn
+  # on when your domains only exist in the company's internal DNS; the servers
+  # above stay as the fallback. The VPN's DNS servers are routed through the
+  # tunnel either way. The Settings tab has a switch for this.
+  use_vpn_dns: false
+
+# Daemon settings
+daemon:
+  # VPN interface polling interval in seconds
+  poll_interval: 1
+  # PID file location (requires root for /var/run)
+  pid_file: "/var/run/routewise.pid"
+  # Log file location
+  log_file: "/var/log/routewise.log"
+  # Log level: debug, info, warn, error
+  log_level: "info"

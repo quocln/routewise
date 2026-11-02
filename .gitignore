@@ -1,0 +1,46 @@
+# Build
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+coverage.txt
+
+# Dependencies
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+*.local.yaml
+
+# Logs
+*.log
+
+# Plans and reports (local development)
+/plans/
+
+# Generated
+.playwright-mcp/
+*.pprof
+repomix-output.xml
+*.ovpn
+
+
+# Built binaries (make build)
+/routewise
+/cmd/routewise/routewise

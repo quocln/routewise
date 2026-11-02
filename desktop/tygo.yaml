@@ -1,0 +1,37 @@
+# Generates the webview's RPC types from the helper's Go types. Run from the
+# repository root (`pnpm gen:types` in desktop does that). Only the files
+# that define the wire contract are read, so unrelated helper code never
+# reaches the webview.
+packages:
+  - path: "github.com/quocln/routewise/internal/activity"
+    output_path: "desktop/src/lib/api/activity.gen.ts"
+    include_files: ["activity_log.go"]
+    type_mappings:
+      time.Time: "string /* RFC 3339 */"
+  - path: "github.com/quocln/routewise/internal/history"
+    output_path: "desktop/src/lib/api/history.gen.ts"
+    include_files: ["access_history_store.go"]
+    type_mappings:
+      time.Time: "string /* RFC 3339 */"
+  - path: "github.com/quocln/routewise/internal/config"
+    output_path: "desktop/src/lib/api/config.gen.ts"
+    include_files: ["config_export.go"]
+    # RoutingMode is declared in config.go, which also holds host-only settings
+    # that must not reach the webview, so the two values are restated here.
+    frontmatter: |
+      export type RoutingMode = "inverted" | "additive";
+    type_mappings:
+      time.Time: "string /* RFC 3339 */"
+  - path: "github.com/quocln/routewise/internal/api"
+    output_path: "desktop/src/lib/api/types.gen.ts"
+    include_files: ["types.go", "methods.go"]
+    frontmatter: |
+      import type { Event as ActivityEvent } from "./activity.gen";
+      import type { Query as AccessQuery, Result as AccessResult } from "./history.gen";
+      import type { Export as ConfigExport } from "./config.gen";
+    type_mappings:
+      json.RawMessage: "unknown"
+      "activity.Event": "ActivityEvent"
+      "history.Query": "AccessQuery"
+      "history.Result": "AccessResult"
+      "config.Export": "ConfigExport"

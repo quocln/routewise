@@ -1,0 +1,111 @@
+name: Release
+
+# Pushing a version tag checks it, runs everything CI runs, builds every platform,
+# and leaves a draft release to look over and publish by hand.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # A tag that disagrees with the code or sits off main stops here, before any build.
+  verify:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Versions and changelog agree with the tag
+        run: bash scripts/check-release-version.sh "$TAG"
+      - name: The tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+  # The tests, and the Windows and Linux installers, exactly as CI builds them.
+  ci:
+    name: CI
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  # Only here, not on every push: a macOS runner costs ten times a Linux one.
+  macos-bundle:
+    name: macOS app
+    needs: verify
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop/src-tauri
+      # make app signs ad hoc, which keeps Apple Silicon from calling a download
+      # damaged. Without an Apple certificate it is not notarized.
+      - name: Build the universal app
+        run: make app COMMIT="$GITHUB_SHA" VERSION="${TAG#v}"
+      - name: Package it
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent build/RouteWise.app "dist/RouteWise-${TAG#v}-macos-universal.zip"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: routewise-macos-universal
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Draft the release
+    needs: [ci, macos-bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job that can write to the repository.
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+          pattern: routewise-*
+          merge-multiple: true
+      - name: Collect the files and their checksums
+        run: |
+          mkdir release
+          find artifacts -type f -exec mv {} release/ \;
+          cd release
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Create the draft
+        run: |
+          bash scripts/release-notes.sh "${TAG#v}" > notes.md
+          prerelease=()
+          case "$TAG" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$TAG" release/* \
+            --draft --verify-tag --title "RouteWise ${TAG#v}" --notes-file notes.md "${prerelease[@]}"

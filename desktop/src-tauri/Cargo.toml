@@ -1,0 +1,67 @@
+[package]
+name = "routewise-desktop"
+version = "1.0.0"
+description = "RouteWise desktop app"
+edition = "2021"
+rust-version = "1.89"
+
+[lib]
+name = "routewise_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+tokio = { version = "1", features = ["net", "io-util", "time", "sync", "rt", "macros"] }
+async-trait = "0.1"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+ureq = "3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "release-health", "logs", "ureq", "rustls"] }
+sentry-panic = "0.49"
+sentry-log = { version = "0.49", features = ["logs"] }
+fancy-regex = "0.20"
+sysinfo = { version = "0.38.4", default-features = false, features = ["system", "disk", "network"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-service-management = "0.3.2"
+
+[target.'cfg(windows)'.dependencies]
+# Named-pipe open with an explicit access mask and a check of who serves it,
+# the service control manager, elevation through ShellExecute (which wants COM)
+# and the Run key.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Pipes",
+    "Win32_System_Registry",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+sentry = { version = "0.49", default-features = false, features = ["test"] }
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
