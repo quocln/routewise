@@ -23,6 +23,7 @@ Unit tests and CI cover all three. This table is what has also run for real, and
 | Built-in WireGuard and Outline | Yes | WireGuard, in a VM | Not yet |
 | Wildcard routing and DNS clearing | Yes | Not recorded | Not yet |
 | VPN apps, as allowed clients | Not recently | OpenVPN and wg-quick, in a VM | Not yet |
+| Scan for VPN apps and Add app, against a helper | Scan, with no VPN app installed; Add app not yet | Not yet | Not yet |
 | Default VPN: move, fallback, direct, return | Yes, with built-in tunnels | Not yet | Not yet |
 | Default VPN with a VPN app | Not yet | Not yet | Not yet |
 | Default VPN across a change of network | Not yet | Not yet | Not yet |

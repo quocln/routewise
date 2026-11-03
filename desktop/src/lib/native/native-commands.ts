@@ -75,6 +75,9 @@ export const saveTextFile = (defaultName: string, contents: string, filter: File
 /** Shows an open dialog; resolves to the file, or null when the user cancelled. */
 export const openTextFile = (filter: FileFilter) => nativeInvoke<OpenedTextFile | null>("open_text_file", { ...filter });
 
+/** Asks for a VPN app or program; resolves to its path, or null when the user cancelled. */
+export const pickVPNProgram = () => nativeInvoke<string | null>("pick_vpn_program");
+
 /** Asks GitHub for the latest release; the shell records the time of the check. */
 export const updateCheck = () => nativeInvoke<UpdateInfo>("update_check");
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/quocln/routewise/internal/api"
 	"github.com/quocln/routewise/internal/testenv"
 	"github.com/quocln/routewise/internal/vpnclient"
 )
@@ -192,5 +193,42 @@ func TestIdentifyBackoffDoublesUpToItsCap(t *testing.T) {
 	}
 	if got := identifyBackoff(1 << 20); got != identifyBackoffMax {
 		t.Errorf("identifyBackoff(huge) = %v, want %v", got, identifyBackoffMax)
+	}
+}
+
+func TestResolvingARefusedProgramIsARejectedRequest(t *testing.T) {
+	d := &Daemon{}
+	_, err := d.ResolveVPNClient("relative/path")
+	if !errors.Is(err, api.ErrRejected) {
+		t.Errorf("err = %v, want it to wrap ErrRejected so the user sees the reason", err)
+	}
+}
+
+func TestAScanLeavesOutWhatIsAlreadyAllowedAndAllowsNothing(t *testing.T) {
+	other := vpnclient.FromPath(testenv.Exe("/opt/other-vpn/bin/other-vpn"))
+	d, _, _, _ := newDNSTestDaemonWith(t, func(d *Daemon) {
+		d.hooks.scanClients = func() []vpnclient.Client {
+			return []vpnclient.Client{vpnclient.FromPath(wireGuardPath), other}
+		}
+	}, "api.rw-test.invalid")
+	if err := d.SetVPNClientAllowed(wireGuardPath, true); err != nil {
+		t.Fatal(err)
+	}
+
+	got := d.ScanVPNClients()
+	if len(got) != 1 || got[0].ID != other.ID {
+		t.Fatalf("scan = %+v, want only %s", got, other.ID)
+	}
+	if allowed := d.AllowedVPNClients(); len(allowed) != 1 || allowed[0].ID != wireGuardPath {
+		t.Errorf("allowed after a scan = %+v, want it unchanged", allowed)
+	}
+}
+
+func TestAScanThatFindsNothingIsAnEmptyListNotNull(t *testing.T) {
+	d, _, _, _ := newDNSTestDaemonWith(t, func(d *Daemon) {
+		d.hooks.scanClients = func() []vpnclient.Client { return nil }
+	}, "api.rw-test.invalid")
+	if got := d.ScanVPNClients(); got == nil || len(got) != 0 {
+		t.Errorf("scan = %#v, want an empty list", got)
 	}
 }

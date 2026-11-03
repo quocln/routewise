@@ -4,6 +4,17 @@ Notable changes to RouteWise. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Find VPN apps before they connect.** **Scan for VPN apps** and **Add app...** under **VPN apps**,
+  on macOS, Linux and Windows.
+
+### Changed
+
+- VPN apps allowed on Linux and Windows show the product's name instead of the file name.
+
 ## [1.0.0] - 2026-11-02
 
 First version.

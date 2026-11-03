@@ -21,6 +21,7 @@ type MockDaemon struct {
 	vpnInterface  string
 	routes        []RouteEntry
 	syncTriggered bool
+	scanned       []VPNClient
 
 	degraded       bool
 	degradedReason string
@@ -165,6 +166,19 @@ func (m *MockDaemon) ImportConfig(e config.Export) (bool, error) {
 
 func (m *MockDaemon) CheckHost(host string) (HostCheck, error) {
 	return HostCheck{Host: host, Addresses: []HostAddress{{IP: "10.20.30.40", Verdict: "vpn", Interface: "utun6"}}}, nil
+}
+
+// rejectedVPNPath is a program the mock refuses, as the daemon refuses anything
+// that could never own a tunnel.
+const rejectedVPNPath = "/not/a/vpn"
+
+func (m *MockDaemon) ScanVPNClients() []VPNClient { return m.scanned }
+
+func (m *MockDaemon) ResolveVPNClient(path string) (VPNClient, error) {
+	if path == rejectedVPNPath {
+		return VPNClient{}, fmt.Errorf("%w: not a VPN client", ErrRejected)
+	}
+	return VPNClient{ID: path + "/tunnel", Name: "Tunnel"}, nil
 }
 
 func (m *MockDaemon) SetVPNClientAllowed(id string, allowed bool) error {
@@ -1063,5 +1077,39 @@ func TestDebugProfileReturnsTheProfile(t *testing.T) {
 	}
 	if got, ok := resp.Result.(ProfileResult); !ok || string(got.Data) != "heap" {
 		t.Fatalf("result = %#v", resp.Result)
+	}
+}
+
+func TestVPNScanReturnsWhatTheDaemonFound(t *testing.T) {
+	found := []VPNClient{{ID: "/usr/sbin/openvpn", Name: "OpenVPN"}}
+	resp := NewHandler(&MockDaemon{scanned: found}, allowAll{}).Handle(request(t, "vpn.scan", nil), consolePeer)
+	if resp.Error != nil {
+		t.Fatalf("vpn.scan: %v", resp.Error.Message)
+	}
+	result, ok := resp.Result.(VPNScanResult)
+	if !ok || len(result.Clients) != 1 || result.Clients[0] != found[0] {
+		t.Errorf("result = %#v", resp.Result)
+	}
+}
+
+func TestVPNResolve(t *testing.T) {
+	handler := NewHandler(&MockDaemon{}, allowAll{})
+
+	resp := handler.Handle(request(t, "vpn.resolve", VPNResolveParams{Path: "/Applications/VPN.app"}), consolePeer)
+	if resp.Error != nil {
+		t.Fatalf("vpn.resolve: %v", resp.Error.Message)
+	}
+	if client, ok := resp.Result.(VPNClient); !ok || client.ID != "/Applications/VPN.app/tunnel" {
+		t.Errorf("result = %#v", resp.Result)
+	}
+
+	resp = handler.Handle(request(t, "vpn.resolve", VPNResolveParams{}), consolePeer)
+	if resp.Error == nil || resp.Error.Code != ErrCodeInvalidPar {
+		t.Errorf("an empty path = %+v, want invalid params", resp.Error)
+	}
+	// The reason reaches the user, since it says what to choose instead.
+	resp = handler.Handle(request(t, "vpn.resolve", VPNResolveParams{Path: rejectedVPNPath}), consolePeer)
+	if resp.Error == nil || resp.Error.Code != ErrCodeInvalidPar || !strings.Contains(resp.Error.Message, "not a VPN client") {
+		t.Errorf("a program that is no client = %+v, want the reason as invalid params", resp.Error)
 	}
 }

@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/rpc/queries";
 import { helperFeatureErrorMessage } from "./vpn-errors";
 import { displayName, isBuiltInClientId, isClientConnected } from "./vpn-format";
 import { useDomainCounts, useHelperReachable } from "./vpn-queries";
+import { VPNAppDiscovery } from "./vpn-app-discovery";
 
 interface Props {
   clients: VPNClient[];
@@ -45,8 +46,8 @@ export function ExternalVPNClientsSection({ clients: allowed, status, onEditDoma
       </h2>
       {clients.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          RouteWise asks before managing a VPN app. When it detects a full-tunnel VPN, it offers to manage it and
-          remembers your answer here.
+          RouteWise asks before managing a VPN app. It offers when it detects a full-tunnel VPN and remembers your
+          answer here. To set one up before it connects, scan for it or add it yourself.
         </p>
       ) : (
         <>
@@ -108,6 +109,7 @@ export function ExternalVPNClientsSection({ clients: allowed, status, onEditDoma
           {error}
         </p>
       ) : null}
+      <VPNAppDiscovery allowedIds={clients.map((c) => c.id)} disabled={!helperReachable} />
     </section>
   );
 }

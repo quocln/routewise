@@ -115,6 +115,8 @@ type daemonHooks struct {
 	flushSystemDNS func(ctx context.Context) error
 	// identifyClient names the program that owns a tunnel.
 	identifyClient func(ctx context.Context, iface string) (vpnclient.Client, error)
+	// scanClients lists the VPN clients installed on this machine.
+	scanClients func() []vpnclient.Client
 	// localPrefixes lists the subnets of the machine's non-tunnel interfaces.
 	localPrefixes func() []netip.Prefix
 	// interfaceUp, when set, replaces how route managers probe whether a tunnel
@@ -429,6 +431,7 @@ func New(cfg *config.Config, persist config.Persister) (*Daemon, error) {
 		},
 		systemNameservers: dns.SystemNameservers,
 		identifyClient:    vpnclient.Identify,
+		scanClients:       vpnclient.Scan,
 		localPrefixes:     lanPrefixes.get,
 		controlEvery:      controlTick,
 	}

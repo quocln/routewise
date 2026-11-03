@@ -28,6 +28,9 @@ import type {
   SetSettingsParams,
   SetTelemetryParams,
   SetVPNClientParams,
+  VPNClient,
+  VPNResolveParams,
+  VPNScanResult,
   Settings,
   StatusResult,
   SuccessResult,
@@ -55,6 +58,8 @@ export interface RpcMethods {
   "config.export": Call<undefined, ConfigExport>;
   "config.import": Call<ImportConfigParams, ImportConfigResult>;
   "vpn.setAllowed": Call<SetVPNClientParams, Settings>;
+  "vpn.scan": Call<undefined, VPNScanResult>;
+  "vpn.resolve": Call<VPNResolveParams, VPNClient>;
   "dns.clearCache": Call<undefined, SuccessResult>;
   "dns.clean": Call<undefined, DNSCleanResult>;
   "activity.list": Call<ActivityParams, ActivityResult>;

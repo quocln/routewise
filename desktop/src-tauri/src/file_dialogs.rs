@@ -1,6 +1,7 @@
-//! Save and open dialogs for text files. The pickers and the file I/O both
-//! live here, so the webview needs no file-system permission and never sees a
-//! path.
+//! Save and open dialogs. The text file pickers do their file I/O here, so the
+//! webview needs no file-system permission and never sees those paths. The VPN
+//! program picker is the one that returns a path: it is what the helper is asked
+//! to identify, and only ever names a program the user just chose.
 
 use std::fs::{self, File};
 use std::io::Read;
@@ -91,6 +92,36 @@ pub async fn open_text_file(
         let chosen = app.dialog().file().add_filter(filter_name, &exts).blocking_pick_file();
         let Some(chosen) = chosen else { return Ok(None) };
         read_limited(&pick_path(chosen)?, MAX_READ_BYTES).map(Some)
+    })
+    .await
+    .map_err(|e| format!("task failed: {e}"))?
+}
+
+/// Where the program picker opens: where VPN apps are installed.
+fn programs_folder() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    return Some(PathBuf::from("/Applications"));
+    #[cfg(target_os = "linux")]
+    return Some(PathBuf::from("/usr/bin"));
+    #[cfg(windows)]
+    return std::env::var_os("ProgramFiles").map(PathBuf::from);
+}
+
+/// Asks for a VPN app or program. `None` when the user cancelled. macOS treats
+/// an app bundle as a file here, so the same picker takes an app or a binary.
+#[tauri::command]
+pub async fn pick_vpn_program(app: AppHandle) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = app.dialog().file();
+        if let Some(folder) = programs_folder() {
+            dialog = dialog.set_directory(folder);
+        }
+        #[cfg(windows)]
+        {
+            dialog = dialog.add_filter("Programs", &["exe"]);
+        }
+        let Some(chosen) = dialog.blocking_pick_file() else { return Ok(None) };
+        Ok(Some(pick_path(chosen)?.to_string_lossy().into_owned()))
     })
     .await
     .map_err(|e| format!("task failed: {e}"))?

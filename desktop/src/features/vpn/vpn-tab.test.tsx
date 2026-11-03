@@ -10,6 +10,12 @@ const calls: { method: string; params: unknown }[] = [];
 
 // A plain function, not vi.fn(): the test runner reports a rejection returned
 // by a spy as unhandled, while the real `invoke` is awaited by the client.
+const pickedProgram = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/native/native-commands", async (original) => ({
+  ...(await original<typeof import("@/lib/native/native-commands")>()),
+  pickVPNProgram: pickedProgram,
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (_command: string, args: { method: string; params: unknown }) => {
     calls.push({ method: args.method, params: args.params });
@@ -438,6 +444,88 @@ describe("VpnTab", () => {
     it("explains how apps get managed when there are none", async () => {
       renderTab();
       expect(await screen.findByText(/RouteWise asks before managing a VPN app/)).toBeInTheDocument();
+    });
+
+    describe("finding apps", () => {
+      const wireguardFound = { id: "/Applications/WireGuard.app/x", name: "WireGuard" };
+      const openvpnFound = { id: "/opt/homebrew/sbin/openvpn", name: "openvpn" };
+
+      it("offers what a scan found and manages only the one chosen", async () => {
+        const user = userEvent.setup();
+        serve({
+          "vpn.scan": () => ({ clients: [wireguardFound, openvpnFound] }),
+          "vpn.setAllowed": () => settings({ allowedVpnClients: [wireguardFound] }),
+        });
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Scan for VPN apps" })).toBeEnabled());
+        await user.click(screen.getByRole("button", { name: "Scan for VPN apps" }));
+
+        const found = within(await screen.findByRole("list", { name: "VPN apps found" }));
+        expect(callsTo("vpn.setAllowed")).toHaveLength(0);
+        expect(found.getAllByRole("listitem")).toHaveLength(2);
+
+        await user.click(found.getAllByRole("button", { name: "Manage" })[0]);
+        expect(callsTo("vpn.setAllowed")[0].params).toEqual({ clientId: wireguardFound.id, allowed: true });
+        // Now managed, it leaves the suggestions.
+        await waitFor(() =>
+          expect(within(screen.getByRole("list", { name: "VPN apps found" })).getAllByRole("listitem")).toHaveLength(1),
+        );
+      });
+
+      it("says so when a scan finds nothing new", async () => {
+        serve({ "vpn.scan": () => ({ clients: [] }) });
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Scan for VPN apps" })).toBeEnabled());
+        await userEvent.setup().click(screen.getByRole("button", { name: "Scan for VPN apps" }));
+        expect(await screen.findByText("No new VPN apps found.")).toBeInTheDocument();
+      });
+
+      it("asks for the helper to be reinstalled when it is too old to scan", async () => {
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Scan for VPN apps" })).toBeEnabled());
+        await userEvent.setup().click(screen.getByRole("button", { name: "Scan for VPN apps" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("Reinstall the helper");
+      });
+
+      it("allows what the helper says owns the tunnel, not the app that was chosen", async () => {
+        pickedProgram.mockResolvedValue("/Applications/WireGuard.app");
+        serve({
+          "vpn.resolve": () => wireguardFound,
+          "vpn.setAllowed": () => settings({ allowedVpnClients: [wireguardFound] }),
+        });
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Add app..." })).toBeEnabled());
+        await userEvent.setup().click(screen.getByRole("button", { name: "Add app..." }));
+
+        await waitFor(() => expect(callsTo("vpn.setAllowed")).toHaveLength(1));
+        expect(callsTo("vpn.resolve")[0].params).toEqual({ path: "/Applications/WireGuard.app" });
+        expect(callsTo("vpn.setAllowed")[0].params).toEqual({ clientId: wireguardFound.id, allowed: true });
+      });
+
+      it("does nothing when the picker is cancelled", async () => {
+        pickedProgram.mockResolvedValue(null);
+        serve({});
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Add app..." })).toBeEnabled());
+        await userEvent.setup().click(screen.getByRole("button", { name: "Add app..." }));
+        await waitFor(() => expect(pickedProgram).toHaveBeenCalled());
+        expect(callsTo("vpn.resolve")).toHaveLength(0);
+        expect(callsTo("vpn.setAllowed")).toHaveLength(0);
+      });
+
+      it("shows why a chosen program was refused and allows nothing", async () => {
+        pickedProgram.mockResolvedValue("/Applications/Notes.app");
+        serve({
+          "vpn.resolve": () => {
+            throw { kind: "remote", code: -32602, message: "Notes.app has no VPN extension" };
+          },
+        });
+        renderTab();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Add app..." })).toBeEnabled());
+        await userEvent.setup().click(screen.getByRole("button", { name: "Add app..." }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("Notes.app has no VPN extension");
+        expect(callsTo("vpn.setAllowed")).toHaveLength(0);
+      });
     });
 
     it("stops managing an app through vpn.setAllowed", async () => {

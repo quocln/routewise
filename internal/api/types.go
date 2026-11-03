@@ -235,6 +235,19 @@ type SetVPNClientParams struct {
 	Allowed  bool   `json:"allowed"`
 }
 
+// VPNScanResult is the result of vpn.scan: the VPN clients installed on this
+// machine that are not allowed yet. Each is a candidate; only connecting shows
+// whether it creates a full tunnel.
+type VPNScanResult struct {
+	Clients []VPNClient `json:"clients"`
+}
+
+// VPNResolveParams is the request body of vpn.resolve.
+type VPNResolveParams struct {
+	// Path is the app or program the user chose.
+	Path string `json:"path"`
+}
+
 // Peer identifies the process on the other end of the control socket, as
 // reported by the kernel rather than by the client itself.
 //

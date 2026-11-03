@@ -56,6 +56,11 @@ type SettingsController interface {
 	// argument is left as it is. A retention change purges at once.
 	SetHistory(enabled *bool, retentionDays *int) error
 	SetVPNClientAllowed(id string, allowed bool) error
+	// ScanVPNClients lists the VPN clients installed here that are not allowed yet.
+	ScanVPNClients() []VPNClient
+	// ResolveVPNClient returns the client a chosen program stands for. A program
+	// that could never own a tunnel is reported as ErrRejected.
+	ResolveVPNClient(path string) (VPNClient, error)
 	// Telemetry returns the error-reporting settings, DSN included.
 	Telemetry() TelemetrySettings
 	// SetTelemetry applies the settings named in p; a nil field is left as it
@@ -455,6 +460,18 @@ func (h *Handler) setVPNClientAllowed(req *Request) *Response {
 		return mutationErrorResponse(req.ID, err)
 	}
 	return successResponse(req.ID, h.daemon.Settings())
+}
+
+func (h *Handler) resolveVPNClient(req *Request) *Response {
+	params, err := decodeParams[VPNResolveParams](req, false)
+	if err != nil || params.Path == "" {
+		return errorResponse(req.ID, ErrCodeInvalidPar, "Invalid params: path required")
+	}
+	client, err := h.daemon.ResolveVPNClient(params.Path)
+	if err != nil {
+		return mutationErrorResponse(req.ID, err)
+	}
+	return successResponse(req.ID, client)
 }
 
 // maxActivityWait bounds a long-poll so it always answers well inside the

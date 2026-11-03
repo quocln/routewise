@@ -250,10 +250,33 @@ func (d *Daemon) AllowedVPNClients() []api.VPNClient {
 				continue
 			}
 		}
-		c := vpnclient.FromPath(id)
+		c := vpnclient.ClientForID(id)
 		out = append(out, api.VPNClient{ID: c.ID, Name: c.Name})
 	}
 	return out
+}
+
+// ScanVPNClients lists the VPN clients installed on this machine that are not
+// allowed yet. It only reads the disk, and allows nothing.
+func (d *Daemon) ScanVPNClients() []api.VPNClient {
+	allowed := d.store.AllowedVPNClients()
+	out := []api.VPNClient{}
+	for _, c := range d.hooks.scanClients() {
+		if !slices.Contains(allowed, c.ID) {
+			out = append(out, api.VPNClient{ID: c.ID, Name: c.Name})
+		}
+	}
+	return out
+}
+
+// ResolveVPNClient returns the client a program the user chose stands for, so
+// that what gets allowed is what Identify reports once the client connects.
+func (d *Daemon) ResolveVPNClient(path string) (api.VPNClient, error) {
+	c, err := vpnclient.ResolveInstalled(path)
+	if err != nil {
+		return api.VPNClient{}, fmt.Errorf("%w: %v", api.ErrRejected, err)
+	}
+	return api.VPNClient{ID: c.ID, Name: c.Name}, nil
 }
 
 // SetVPNClientAllowed adds a VPN client to the allowlist or removes it, saves

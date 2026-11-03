@@ -95,6 +95,7 @@ pub fn run() {
             log_folders::open_log_folder,
             file_dialogs::save_text_file,
             file_dialogs::open_text_file,
+            file_dialogs::pick_vpn_program,
             updates::update_check,
             updates::update_last_result,
             updates::open_release_page,

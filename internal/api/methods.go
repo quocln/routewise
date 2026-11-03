@@ -19,6 +19,8 @@ const (
 	MethodConfigImport = "config.import"
 
 	MethodVPNSetAllowed = "vpn.setAllowed"
+	MethodVPNScan       = "vpn.scan"
+	MethodVPNResolve    = "vpn.resolve"
 
 	MethodDNSClearCache = "dns.clearCache"
 	MethodDNSClean      = "dns.clean"
@@ -99,6 +101,9 @@ var rpcMethods = map[string]rpcMethod{
 		return successResponse(req.ID, h.daemon.Telemetry())
 	}},
 	MethodDebugProfile: {AuthPrivateRead, (*Handler).debugProfile},
+	MethodVPNScan: {AuthPrivateRead, func(h *Handler, req *Request) *Response {
+		return successResponse(req.ID, VPNScanResult{Clients: h.daemon.ScanVPNClients()})
+	}},
 	MethodProfilesList: {AuthPrivateRead, func(h *Handler, req *Request) *Response {
 		return successResponse(req.ID, h.profilesList())
 	}},
@@ -112,6 +117,8 @@ var rpcMethods = map[string]rpcMethod{
 	MethodDomainsSet:    {AuthMutate, (*Handler).setDomains},
 	MethodSettingsSet:   {AuthMutate, (*Handler).setSettings},
 	MethodVPNSetAllowed: {AuthMutate, (*Handler).setVPNClientAllowed},
+	// Mutate, like allowing what it returns: it has the helper look at any path.
+	MethodVPNResolve:    {AuthMutate, (*Handler).resolveVPNClient},
 	MethodDNSClearCache: {AuthMutate, (*Handler).clearDNSCache},
 	MethodDNSClean:      {AuthMutate, (*Handler).cleanDNS},
 

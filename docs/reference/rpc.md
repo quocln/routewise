@@ -29,11 +29,13 @@ This interface is internal: the app and the helper ship together, and it may cha
 | `prefs.get` | Private read | This user's app preferences |
 | `telemetry.get` | Private read | Error-reporting settings, including the DSN |
 | `profiles.list` | Private read | Built-in VPNs, without secrets |
+| `vpn.scan` | Private read | VPN clients installed here that are not allowed yet |
 | `debug.profile` | Private read | A runtime profile |
 | `settings.set` | Mutate | Change settings |
 | `domains.add`, `domains.remove`, `domains.set` | Mutate | Edit a list |
 | `config.import` | Mutate | Replace the routing configuration |
 | `vpn.setAllowed` | Mutate | Allow or revoke a VPN client |
+| `vpn.resolve` | Mutate | The VPN client a chosen app or program stands for |
 | `dns.clearCache`, `dns.clean` | Mutate | [Clear DNS](../how-to/manage-dns.md#clear-dns) |
 | `access.clear` | Mutate | Delete the connection history |
 | `prefs.set` | Mutate | Store one app preference |

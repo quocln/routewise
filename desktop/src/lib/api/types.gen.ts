@@ -57,6 +57,14 @@ export const MethodVPNSetAllowed = "vpn.setAllowed";
 /**
  * JSON-RPC method names. The wire names never change; each appears once here.
  */
+export const MethodVPNScan = "vpn.scan";
+/**
+ * JSON-RPC method names. The wire names never change; each appears once here.
+ */
+export const MethodVPNResolve = "vpn.resolve";
+/**
+ * JSON-RPC method names. The wire names never change; each appears once here.
+ */
 export const MethodDNSClearCache = "dns.clearCache";
 /**
  * JSON-RPC method names. The wire names never change; each appears once here.
@@ -442,6 +450,23 @@ export interface PendingVPN {
 export interface SetVPNClientParams {
   clientId: string;
   allowed: boolean;
+}
+/**
+ * VPNScanResult is the result of vpn.scan: the VPN clients installed on this
+ * machine that are not allowed yet. Each is a candidate; only connecting shows
+ * whether it creates a full tunnel.
+ */
+export interface VPNScanResult {
+  clients: VPNClient[];
+}
+/**
+ * VPNResolveParams is the request body of vpn.resolve.
+ */
+export interface VPNResolveParams {
+  /**
+   * Path is the app or program the user chose.
+   */
+  path: string;
 }
 /**
  * Peer identifies the process on the other end of the control socket, as

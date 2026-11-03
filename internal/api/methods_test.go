@@ -35,6 +35,8 @@ var goldenAuth = map[string]AuthLevel{
 	"telemetry.set":       AuthMutate,
 	"debug.profile":       AuthPrivateRead,
 	"vpn.setAllowed":      AuthMutate,
+	"vpn.resolve":         AuthMutate,
+	"vpn.scan":            AuthPrivateRead,
 	"profiles.import":     AuthMutate,
 	"profiles.update":     AuthMutate,
 	"profiles.remove":     AuthMutate,
