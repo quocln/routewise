@@ -6,6 +6,8 @@ Notable changes to RouteWise. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-03
+
 ### Added
 
 - **Find VPN apps before they connect.** **Scan for VPN apps** and **Add app...** under **VPN apps**,

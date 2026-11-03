@@ -53,5 +53,5 @@ Linux and Windows are covered in [Install](docs/how-to/install.md).
 
 ## Status
 
-Version 1.0.0. macOS is the primary platform. See
+Version 1.1.0. macOS is the primary platform. See
 [what has been tested where](docs/reference/platforms.md).
