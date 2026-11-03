@@ -14,3 +14,5 @@ the old one.
 - [0003 Hedged DNS Without Server Memory](0003-hedged-dns-without-server-memory.md)
 - [0004 Helper Structure](0004-helper-structure.md)
 - [0005 Default VPN Exceptions](0005-default-vpn-exceptions.md)
+- [0006 SOCKS5 As A Built-In Tunnel](0006-socks5-as-a-built-in-tunnel.md)
+- [0007 HTTP Proxies Through CONNECT](0007-http-proxies-through-connect.md)

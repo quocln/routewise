@@ -28,7 +28,7 @@ export function profileIdFromClientId(vpnId: string): string | undefined {
   return id === "" ? undefined : id;
 }
 
-/** Whether `vpnId` names a built-in WireGuard or Outline profile rather than a VPN app's executable path. */
+/** Whether `vpnId` names a built-in profile rather than a VPN app's executable path. */
 export function isBuiltInClientId(vpnId: string): boolean {
   return profileIdFromClientId(vpnId) !== undefined;
 }

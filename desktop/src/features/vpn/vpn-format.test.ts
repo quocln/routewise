@@ -8,9 +8,12 @@ import {
   handshakeAge,
   isBuiltInClientId,
   isClientConnected,
+  isLocalHost,
   profileClientId,
   profileKind,
   profileState,
+  proxyAddress,
+  proxyProblem,
   stateText,
   statsLine,
 } from "./vpn-format";
@@ -121,5 +124,47 @@ describe("accessKeyProblem", () => {
     expect(accessKeyProblem("   ")).toBe("Enter an access key.");
     expect(accessKeyProblem("https://example.invalid")).toBe("The key must start with ss:// or ssconf://.");
     expect(accessKeyProblem("ss://")).toBe("The key is incomplete.");
+  });
+});
+
+describe("proxies", () => {
+  const fields = { host: "proxy.example.com", port: "1080", username: "", password: "" };
+
+  it("knows the kind", () => {
+    expect(profileKind({ kind: "socks5" })).toBe("socks5");
+    expect(profileKind({ kind: "http" })).toBe("http");
+  });
+
+  it("builds the address", () => {
+    expect(proxyAddress("socks5", fields)).toBe("socks5://proxy.example.com:1080");
+    expect(proxyAddress("socks5", { ...fields, host: " ::1 " })).toBe("socks5://[::1]:1080");
+    expect(proxyAddress("socks5", { ...fields, host: "[::1]" })).toBe("socks5://[::1]:1080");
+    expect(proxyAddress("socks5", { ...fields, username: "a b", password: "c/d" })).toBe(
+      "socks5://a%20b:c%2Fd@proxy.example.com:1080",
+    );
+  });
+
+  it("builds an HTTP proxy's address", () => {
+    expect(proxyAddress("http", { ...fields, port: "8080" })).toBe("http://proxy.example.com:8080");
+  });
+
+  it("finds what the helper would refuse", () => {
+    expect(proxyProblem(fields)).toBeNull();
+    expect(proxyProblem({ ...fields, host: " " })).toMatch(/host/);
+    expect(proxyProblem({ ...fields, host: "user@host" })).toMatch(/only the host/);
+    expect(proxyProblem({ ...fields, port: "0" })).toMatch(/port/);
+    expect(proxyProblem({ ...fields, port: "65536" })).toMatch(/port/);
+    expect(proxyProblem({ ...fields, port: "1e3" })).toMatch(/port/);
+    expect(proxyProblem({ ...fields, username: "me" })).toMatch(/both/);
+    expect(proxyProblem({ ...fields, password: "pw" })).toMatch(/both/);
+  });
+
+  it("tells a local host from a public one", () => {
+    for (const host of ["localhost", "127.0.0.1", "::1", "[::1]", "10.1.2.3", "172.16.0.1", "172.31.0.1", "192.168.1.1"]) {
+      expect(isLocalHost(host)).toBe(true);
+    }
+    for (const host of ["203.0.113.9", "172.32.0.1", "8.8.8.8", "proxy.example.com", "10.0.0", "999.1.1.1"]) {
+      expect(isLocalHost(host)).toBe(false);
+    }
   });
 });

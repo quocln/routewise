@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDownIcon, KeyRoundIcon } from "lucide-react";
+import { FileDownIcon, KeyRoundIcon, NetworkIcon } from "lucide-react";
 import { useState } from "react";
 import type { ProfileInfo, StatusResult } from "@/lib/api/types.gen";
 import {
@@ -18,7 +18,7 @@ import { BuiltInProfileCard } from "./built-in-profile-card";
 import { ProfileSheetHost, type ProfileSheet } from "./profile-sheets";
 import { useProfileActions } from "./use-profile-actions";
 import { helperFeatureErrorMessage } from "./vpn-errors";
-import { profileClientId, profileKind } from "./vpn-format";
+import { profileClientId, profileKind, type ProxyKind } from "./vpn-format";
 import { useDomainCounts, useHelperReachable, useProfiles } from "./vpn-queries";
 import { useWireGuardFilePicker } from "./wireguard-file-picker";
 
@@ -28,7 +28,7 @@ interface Props {
   onEditDomains?: (clientId: string) => void;
 }
 
-/** VPN tab section for the built-in WireGuard and Outline clients. */
+/** VPN tab section for the built-in WireGuard, Outline and proxy clients. */
 export function BuiltInVPNsSection({ status, onEditDomains }: Props) {
   const profiles = useProfiles();
   const helperReachable = useHelperReachable();
@@ -49,6 +49,10 @@ export function BuiltInVPNsSection({ status, onEditDomains }: Props) {
     switch (profileKind(profile)) {
       case "outline":
         setSheet({ kind: "replaceOutlineKey", profile });
+        break;
+      case "socks5":
+      case "http":
+        setSheet({ kind: "replaceProxy", proxy: profileKind(profile) as ProxyKind, profile });
         break;
       case "wireguard":
         picker.open((file) => setSheet({ kind: "replaceWireGuardConfig", profile, file }));
@@ -73,7 +77,7 @@ export function BuiltInVPNsSection({ status, onEditDomains }: Props) {
       {list.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           {profiles.data
-            ? "No built-in VPNs yet. Import a WireGuard config or add an Outline key; RouteWise connects it itself and routes your domain list through it."
+            ? "No built-in VPNs yet. Import a WireGuard config, or add an Outline key or a proxy; RouteWise connects it itself and routes your domain list through it."
             : "Built-in VPNs appear here once the helper answers."}
         </p>
       ) : null}
@@ -111,6 +115,22 @@ export function BuiltInVPNsSection({ status, onEditDomains }: Props) {
         <Button variant="outline" size="sm" disabled={!helperReachable} onClick={() => setSheet({ kind: "addOutline" })}>
           <KeyRoundIcon data-icon="inline-start" aria-hidden />
           Add Outline Key…
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!helperReachable}
+          onClick={() => setSheet({ kind: "addProxy", proxy: "socks5" })}>
+          <NetworkIcon data-icon="inline-start" aria-hidden />
+          Add SOCKS5 Proxy…
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!helperReachable}
+          onClick={() => setSheet({ kind: "addProxy", proxy: "http" })}>
+          <NetworkIcon data-icon="inline-start" aria-hidden />
+          Add HTTP Proxy…
         </Button>
       </div>
       {picker.input}

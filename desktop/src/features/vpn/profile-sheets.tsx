@@ -2,8 +2,9 @@
 
 import type { ProfileInfo } from "@/lib/api/types.gen";
 import { ProfileEntryDialog } from "./profile-entry-dialog";
+import { ProxyEntryDialog } from "./proxy-entry-dialog";
 import type { ProfileActions } from "./use-profile-actions";
-import { displayName } from "./vpn-format";
+import { displayName, kindTitle, type ProxyKind } from "./vpn-format";
 import { nameFromFile, readWireGuardConfig } from "./wireguard-config-file";
 
 /**
@@ -13,6 +14,8 @@ import { nameFromFile, readWireGuardConfig } from "./wireguard-config-file";
 export type ProfileSheet =
   | { kind: "importWireGuard"; file: File }
   | { kind: "addOutline" }
+  | { kind: "addProxy"; proxy: ProxyKind }
+  | { kind: "replaceProxy"; proxy: ProxyKind; profile: ProfileInfo }
   | { kind: "rename"; profile: ProfileInfo }
   | { kind: "replaceOutlineKey"; profile: ProfileInfo }
   | { kind: "replaceWireGuardConfig"; profile: ProfileInfo; file: File };
@@ -57,6 +60,34 @@ export function ProfileSheetHost({ sheet, onClose, actions }: Props) {
           }}
         />
       );
+    case "addProxy": {
+      const { proxy } = sheet;
+      return (
+        <ProxyEntryDialog
+          {...common}
+          proxy={proxy}
+          title={proxy === "http" ? "Add HTTP proxy" : "Add SOCKS5 proxy"}
+          confirmLabel="Add"
+          askName
+          submit={async (name, accessKey) => {
+            await actions.importProfile({ kind: proxy, name, accessKey });
+          }}
+        />
+      );
+    }
+    case "replaceProxy": {
+      const { profile, proxy } = sheet;
+      return (
+        <ProxyEntryDialog
+          {...common}
+          proxy={proxy}
+          title={`${kindTitle(proxy)} for ${displayName(profile.name, profile.id)}`}
+          confirmLabel="Save"
+          askName={false}
+          submit={(_, address) => actions.setSecret(profile, address)}
+        />
+      );
+    }
     case "rename": {
       const { profile } = sheet;
       return (

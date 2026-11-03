@@ -13,7 +13,7 @@ interface Props {
 }
 
 /**
- * The VPN tab: built-in WireGuard and Outline profiles, the VPN apps RouteWise
+ * The VPN tab: built-in WireGuard, Outline and proxy profiles, the VPN apps RouteWise
  * manages, and the VPN DNS switch.
  */
 export function VpnTab({ onEditDomains }: Props) {

@@ -319,6 +319,140 @@ describe("VpnTab", () => {
       expect(await screen.findByText("Reinstall the helper to use this feature.")).toBeInTheDocument();
     });
 
+    describe("SOCKS5", () => {
+      async function openForm(user: ReturnType<typeof userEvent.setup>) {
+        const add = await screen.findByRole("button", { name: /Add SOCKS5 Proxy/ });
+        await waitFor(() => expect(add).toBeEnabled());
+        await user.click(add);
+        await screen.findByLabelText("Host");
+      }
+
+      it("adds a proxy with no password", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.import": () => ({ id: "p9" }) });
+        renderTab();
+        await openForm(user);
+        await user.type(screen.getByLabelText("Name"), "Laptop");
+        await user.type(screen.getByLabelText("Host"), " 127.0.0.1 ");
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        await waitFor(() => expect(callsTo("profiles.import")).toHaveLength(1));
+        expect(callsTo("profiles.import")[0].params).toEqual({
+          kind: "socks5",
+          name: "Laptop",
+          accessKey: "socks5://127.0.0.1:1080",
+        });
+      });
+
+      it("encodes a username and password that hold URL characters", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.import": () => ({ id: "p9" }) });
+        renderTab();
+        await openForm(user);
+        await user.type(screen.getByLabelText("Name"), "Office");
+        await user.type(screen.getByLabelText("Host"), "proxy.example.com");
+        await user.clear(screen.getByLabelText("Port"));
+        await user.type(screen.getByLabelText("Port"), "2080");
+        await user.type(screen.getByLabelText("Username (optional)"), "me@corp");
+        await user.type(screen.getByLabelText("Password (optional)"), "p:ss/w@rd");
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        await waitFor(() => expect(callsTo("profiles.import")).toHaveLength(1));
+        expect(callsTo("profiles.import")[0].params).toMatchObject({
+          accessKey: "socks5://me%40corp:p%3Ass%2Fw%40rd@proxy.example.com:2080",
+        });
+      });
+
+      it("warns about, but allows, an open proxy on the Internet", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.import": () => ({ id: "p9" }) });
+        renderTab();
+        await openForm(user);
+        await user.type(screen.getByLabelText("Name"), "Free");
+        await user.type(screen.getByLabelText("Host"), "203.0.113.9");
+        expect(screen.getByText(/open to anyone/)).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        await waitFor(() => expect(callsTo("profiles.import")).toHaveLength(1));
+      });
+
+      it("does not warn about a proxy on this machine or the LAN, or one with a password", async () => {
+        const user = userEvent.setup();
+        serve();
+        renderTab();
+        await openForm(user);
+        await user.type(screen.getByLabelText("Host"), "192.168.1.5");
+        expect(screen.queryByText(/open to anyone/)).toBeNull();
+        await user.clear(screen.getByLabelText("Host"));
+        await user.type(screen.getByLabelText("Host"), "proxy.example.com");
+        await user.type(screen.getByLabelText("Username (optional)"), "me");
+        expect(screen.queryByText(/open to anyone/)).toBeNull();
+      });
+
+      it("refuses half a login and a bad port without asking the helper", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.import": () => ({ id: "p9" }) });
+        renderTab();
+        await openForm(user);
+        await user.type(screen.getByLabelText("Name"), "Office");
+        await user.type(screen.getByLabelText("Host"), "proxy.example.com");
+        await user.type(screen.getByLabelText("Username (optional)"), "me");
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent(/both a username and a password/);
+        await user.clear(screen.getByLabelText("Username (optional)"));
+        await user.clear(screen.getByLabelText("Port"));
+        await user.type(screen.getByLabelText("Port"), "70000");
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent(/between 1 and 65535/);
+        expect(callsTo("profiles.import")).toHaveLength(0);
+      });
+
+      it("replaces a proxy's address through profiles.update", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.list": () => [profile({ kind: "socks5" })], "profiles.update": () => ({ success: true }) });
+        renderTab();
+        await user.click(await screen.findByRole("button", { name: "More actions for Work" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Replace Proxy…" }));
+        await user.type(await screen.findByLabelText("Host"), "10.0.0.5");
+        await user.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(callsTo("profiles.update")).toHaveLength(1));
+        expect(callsTo("profiles.update")[0].params).toEqual({ id: "p1", accessKey: "socks5://10.0.0.5:1080" });
+      });
+    });
+
+    describe("HTTP proxy", () => {
+      it("adds a proxy on its own port and says what it does not protect", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.import": () => ({ id: "p9" }) });
+        renderTab();
+        const add = await screen.findByRole("button", { name: /Add HTTP Proxy/ });
+        await waitFor(() => expect(add).toBeEnabled());
+        await user.click(add);
+        expect(await screen.findByLabelText("Port")).toHaveValue("8080");
+        expect(screen.getByText(/must support CONNECT/)).toBeInTheDocument();
+        await user.type(screen.getByLabelText("Name"), "Office");
+        await user.type(screen.getByLabelText("Host"), "proxy.example.com");
+        await user.type(screen.getByLabelText("Username (optional)"), "me");
+        await user.type(screen.getByLabelText("Password (optional)"), "p@ss");
+        await user.click(screen.getByRole("button", { name: "Add" }));
+        await waitFor(() => expect(callsTo("profiles.import")).toHaveLength(1));
+        expect(callsTo("profiles.import")[0].params).toEqual({
+          kind: "http",
+          name: "Office",
+          accessKey: "http://me:p%40ss@proxy.example.com:8080",
+        });
+      });
+
+      it("replaces a proxy's address through profiles.update", async () => {
+        const user = userEvent.setup();
+        serve({ "profiles.list": () => [profile({ kind: "http" })], "profiles.update": () => ({ success: true }) });
+        renderTab();
+        await user.click(await screen.findByRole("button", { name: "More actions for Work" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Replace Proxy…" }));
+        await user.type(await screen.findByLabelText("Host"), "10.0.0.5");
+        await user.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(callsTo("profiles.update")).toHaveLength(1));
+        expect(callsTo("profiles.update")[0].params).toEqual({ id: "p1", accessKey: "http://10.0.0.5:8080" });
+      });
+    });
+
     it("replaces the key of an Outline profile through profiles.update", async () => {
       serve({ "profiles.list": () => [profile({ kind: "outline" })], "profiles.update": () => ({ success: true }) });
       renderTab();

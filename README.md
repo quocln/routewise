@@ -13,7 +13,7 @@ once, each with its own list.
 - **Routing by name:** domains, wildcards such as `*.corp.example.com`, IPv4 addresses and
   CIDRs. Routes follow a domain's IP changes.
 - **Several VPNs at once:** VPN apps (AWS Client VPN, OpenVPN, WireGuard) and built-in
-  WireGuard and Outline tunnels the helper runs itself.
+  WireGuard, Outline, SOCKS5 and HTTP proxy tunnels the helper runs itself.
 - **Default VPN:** optionally send everything that is in no list through one VPN, with a
   fallback when it drops.
 - **See what goes where:** connections, DNS answers and route events, and a check for any

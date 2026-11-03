@@ -398,3 +398,51 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	}
 	t.Fatalf("timed out waiting for %s", what)
 }
+
+// Another protocol's dialer carries the flows, and the log says whose tunnel it is. The
+// factory for Shadowsocks must not run, since there is no key to give it.
+func TestStartWithDialerForwardsThroughIt(t *testing.T) {
+	tunSide, hostSide := newPipeTunPair("utunTEST", "host")
+	dialer := &fakeDialer{tcpTarget: startDestServer(t)}
+	var logs lockedBuffer
+	server := netip.MustParseAddrPort("203.0.113.10:1080")
+	tn, err := StartWithDialer(context.Background(), server, dialer, Options{
+		Address: netip.MustParseAddr("10.233.0.7"),
+		Logger:  slog.New(slog.NewTextHandler(&logs, nil)),
+		Links:   &recordLinks{},
+		NewDialer: func(Key, netip.AddrPort) (Dialer, error) {
+			t.Error("the Shadowsocks factory ran")
+			return nil, errors.New("no")
+		},
+		CreateTUN: func(int) (tun.Device, error) { return tunSide, nil },
+		Label:     "socks5",
+	})
+	if err != nil {
+		t.Fatalf("StartWithDialer: %v", err)
+	}
+	t.Cleanup(func() { _ = tn.Stop() })
+	if tn.ServerAddr() != server {
+		t.Errorf("ServerAddr = %v", tn.ServerAddr())
+	}
+	host := newLocalHost(t, hostSide, netip.MustParseAddr("10.233.0.2"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := host.dialTCP(ctx, netip.MustParseAddrPort("198.51.100.20:8443"))
+	if err != nil {
+		t.Fatalf("dial through tunnel: %v", err)
+	}
+	defer c.Close()
+	if _, err := c.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := io.ReadAll(c); err != nil || string(got) != "got:hello" {
+		t.Fatalf("read = %q, %v", got, err)
+	}
+	if text := logs.String(); !strings.Contains(text, "socks5 tunnel up") || strings.Contains(text, "outline") {
+		t.Errorf("logs = %s", text)
+	}
+}

@@ -25,7 +25,7 @@ var (
 
 var profileCmd = &cobra.Command{
 	Use:   "profile",
-	Short: "Manage built-in WireGuard and Outline VPNs",
+	Short: "Manage built-in WireGuard, Outline, SOCKS5 and HTTP proxy VPNs",
 	Long: `Manage the VPNs the RouteWise helper runs itself: WireGuard tunnels from a
 .conf file and Outline (Shadowsocks) tunnels from an access key. Each profile
 gets its own domain list (see the app, or 'routewise add-domain') and routes
@@ -74,15 +74,55 @@ Examples:
 	RunE: runProfileImportOutline,
 }
 
+var profileImportSOCKS5Cmd = &cobra.Command{
+	Use:   "import-socks5",
+	Short: "Import a SOCKS5 proxy as a profile (read from stdin or a hidden prompt)",
+	Long: `Import a SOCKS5 proxy as socks5://[username:password@]host:port, with the
+username and password percent-encoded.
+
+The address can hold a password, so it is never taken as an argument: pipe it in, or
+run the command with no input redirected and type or paste it at the prompt, where it
+is not echoed.
+
+SOCKS5 encrypts nothing. The proxy, and anyone on the network to it, can read traffic
+that is not already encrypted, and the password itself.
+
+Examples:
+  pbpaste | routewise profile import-socks5 --name Office
+  echo socks5://127.0.0.1:1080 | routewise profile import-socks5 --name Laptop`,
+	Args: noKeyArgument,
+	RunE: runProfileImportSOCKS5,
+}
+
+var profileImportHTTPCmd = &cobra.Command{
+	Use:   "import-http",
+	Short: "Import an HTTP proxy as a profile (read from stdin or a hidden prompt)",
+	Long: `Import an HTTP proxy as http://[username:password@]host:port, with the username
+and password percent-encoded. It must support the CONNECT method.
+
+The address can hold a password, so it is never taken as an argument: pipe it in, or
+run the command with no input redirected and type or paste it at the prompt, where it
+is not echoed.
+
+An HTTP proxy carries only TCP, and many allow only port 443. The connection to it is
+not encrypted, so anyone on the network to it can read the password.
+
+Examples:
+  pbpaste | routewise profile import-http --name Office
+  echo http://127.0.0.1:8080 | routewise profile import-http --name Laptop`,
+	Args: noKeyArgument,
+	RunE: runProfileImportHTTP,
+}
+
 // noKeyArgument refuses a key given on the command line. Its message never
 // repeats the argument, which may be the key itself.
 func noKeyArgument(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 || (len(args) == 1 && args[0] == "-") {
 		return nil
 	}
-	return errors.New("import-outline does not take the key as an argument, because it would be visible " +
-		"in the process list and shell history; pipe it in (pbpaste | routewise profile import-outline) " +
-		"or run it with no argument to be prompted")
+	return fmt.Errorf("%[1]s does not take the secret as an argument, because it would be visible "+
+		"in the process list and shell history; pipe it in (pbpaste | routewise profile %[1]s) "+
+		"or run it with no argument to be prompted", cmd.Name())
 }
 
 var profileConnectCmd = &cobra.Command{
@@ -113,11 +153,11 @@ var profileRemoveCmd = &cobra.Command{
 }
 
 func init() {
-	for _, c := range []*cobra.Command{profileImportWireGuardCmd, profileImportOutlineCmd} {
+	for _, c := range []*cobra.Command{profileImportWireGuardCmd, profileImportOutlineCmd, profileImportSOCKS5Cmd, profileImportHTTPCmd} {
 		c.Flags().StringVar(&profileName, "name", "", "profile name (default: derived from the key, or the kind)")
 		c.Flags().BoolVar(&profileAuto, "auto", false, "connect this profile when the helper starts")
 	}
-	profileCmd.AddCommand(profileListCmd, profileImportWireGuardCmd, profileImportOutlineCmd,
+	profileCmd.AddCommand(profileListCmd, profileImportWireGuardCmd, profileImportOutlineCmd, profileImportSOCKS5Cmd, profileImportHTTPCmd,
 		profileConnectCmd, profileDisconnectCmd, profileRemoveCmd)
 	rootCmd.AddCommand(profileCmd)
 }
@@ -128,7 +168,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if len(profiles) == 0 {
-		fmt.Println("No built-in VPN profiles. Import one with 'routewise profile import-wireguard' or 'import-outline'.")
+		fmt.Println("No built-in VPN profiles. Import one with 'routewise profile import-wireguard', 'import-outline', 'import-socks5' or 'import-http'.")
 		return nil
 	}
 	for _, p := range profiles {
@@ -200,7 +240,7 @@ func (in outlineKeyInput) read() (string, error) {
 		return "", err
 	}
 	if strings.TrimSpace(key) == "" {
-		return "", errors.New("no access key given: pipe it in, or run the command in a terminal to be prompted")
+		return "", errors.New("nothing given: pipe it in, or run the command in a terminal to be prompted")
 	}
 	return key, nil
 }
@@ -246,19 +286,37 @@ func runProfileImportWireGuard(cmd *cobra.Command, args []string) error {
 	return submitProfileImport(wireGuardImportParams(text, profileName, profileAuto))
 }
 
-func runProfileImportOutline(cmd *cobra.Command, args []string) error {
+// secretInput builds where a piped or prompted secret comes from. The hidden prompt
+// applies only when the command really reads the process's terminal; a stdin set by a
+// caller (or a test) is read as given.
+func secretInput(cmd *cobra.Command, args []string, prompt string) outlineKeyInput {
 	in := outlineKeyInput{stdin: cmd.InOrStdin()}
-	// The hidden prompt applies only when the command really reads the process's
-	// terminal; a stdin set by a caller (or a test) is read as given.
 	if f, ok := in.stdin.(*os.File); ok && f == os.Stdin && len(args) == 0 {
 		in.stdinIsTerminal = func() bool { return isTerminal(f) }
-		in.prompt = func() (string, error) { return promptHidden(f, os.Stderr, "Outline access key (input is hidden): ") }
+		in.prompt = func() (string, error) { return promptHidden(f, os.Stderr, prompt) }
 	}
-	key, err := in.read()
+	return in
+}
+
+func runProfileImportOutline(cmd *cobra.Command, args []string) error {
+	key, err := secretInput(cmd, args, "Outline access key (input is hidden): ").read()
 	if err != nil {
 		return err
 	}
 	return submitProfileImport(outlineImportParams(key, profileName, profileAuto))
+}
+
+// socks5ImportParams builds the profiles.import request for a proxy address.
+func socks5ImportParams(address, name string, auto bool) api.ProfileImportParams {
+	return api.ProfileImportParams{Kind: config.ProfileKindSOCKS5, Name: name, AccessKey: strings.TrimSpace(address), AutoConnect: auto}
+}
+
+func runProfileImportSOCKS5(cmd *cobra.Command, args []string) error {
+	address, err := secretInput(cmd, args, "SOCKS5 proxy address (input is hidden): ").read()
+	if err != nil {
+		return err
+	}
+	return submitProfileImport(socks5ImportParams(address, profileName, profileAuto))
 }
 
 // submitProfileImport sends an import to the helper. It is a variable so a test
@@ -312,4 +370,17 @@ func resolveProfile(profiles []api.ProfileInfo, ref string) (api.ProfileInfo, er
 		return api.ProfileInfo{}, fmt.Errorf("no profile with id or name %q (see 'routewise profile list')", ref)
 	}
 	return api.ProfileInfo{}, fmt.Errorf("%d profiles are named %q; use the id", len(matches), ref)
+}
+
+// httpImportParams builds the profiles.import request for a proxy address.
+func httpImportParams(address, name string, auto bool) api.ProfileImportParams {
+	return api.ProfileImportParams{Kind: config.ProfileKindHTTP, Name: name, AccessKey: strings.TrimSpace(address), AutoConnect: auto}
+}
+
+func runProfileImportHTTP(cmd *cobra.Command, args []string) error {
+	address, err := secretInput(cmd, args, "HTTP proxy address (input is hidden): ").read()
+	if err != nil {
+		return err
+	}
+	return submitProfileImport(httpImportParams(address, profileName, profileAuto))
 }

@@ -16,7 +16,7 @@ Get a specific thing done.
 - [Install, update and remove](how-to/install.md)
 - [Manage domain lists](how-to/manage-domains.md)
 - [Use a VPN app](how-to/use-vpn-apps.md)
-- [Use built-in WireGuard and Outline](how-to/use-built-in-vpns.md)
+- [Use built-in WireGuard, Outline and proxies](how-to/use-built-in-vpns.md)
 - [Set a default VPN](how-to/set-default-vpn.md)
 - [See what goes through the VPN](how-to/inspect-traffic.md)
 - [Use the VPN's DNS and clear DNS](how-to/manage-dns.md)

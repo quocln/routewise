@@ -15,10 +15,12 @@ import (
 const (
 	ProfileKindWireGuard = "wireguard"
 	ProfileKindOutline   = "outline"
+	ProfileKindSOCKS5    = "socks5"
+	ProfileKindHTTP      = "http"
 )
 
 // profileKinds lists every kind a profile may have.
-var profileKinds = []string{ProfileKindWireGuard, ProfileKindOutline}
+var profileKinds = []string{ProfileKindWireGuard, ProfileKindOutline, ProfileKindSOCKS5, ProfileKindHTTP}
 
 // ProfileKinds returns the known profile kinds. Code that keeps a table per kind
 // can check its keys against this list.
@@ -34,14 +36,15 @@ const (
 
 var profileIDRegex = regexp.MustCompile(`^[0-9a-f]{4,32}$`)
 
-// TunnelProfile is the metadata of one built-in VPN: a WireGuard tunnel or an
-// Outline (Shadowsocks) tunnel that the helper runs itself. It never holds
-// secrets; the WireGuard .conf text and the Outline access key live in their
-// own table of the config database and are read only by the tunnel manager.
+// TunnelProfile is the metadata of one built-in VPN: a WireGuard tunnel, an
+// Outline (Shadowsocks) tunnel or a tunnel through a SOCKS5 or HTTP proxy, which the
+// helper runs itself. It never holds secrets; the WireGuard .conf text, the Outline access
+// key and the proxy address live in their own table of the config database and are
+// read only by the tunnel manager.
 type TunnelProfile struct {
 	// ID is short random hex, stable for the life of the profile.
 	ID string `yaml:"id" mapstructure:"id" json:"id"`
-	// Kind is ProfileKindWireGuard or ProfileKindOutline.
+	// Kind is one of profileKinds.
 	Kind string `yaml:"kind" mapstructure:"kind" json:"kind"`
 	// Name is what the user calls the profile; it is also the VPN client name
 	// shown for the tunnel.
@@ -143,7 +146,7 @@ func validateProfiles(profiles []TunnelProfile) error {
 			return fmt.Errorf("profiles[%d]: invalid id %q", i, p.ID)
 		}
 		if !validProfileKind(p.Kind) {
-			return fmt.Errorf("profiles[%d]: kind must be %q or %q, got %q", i, ProfileKindWireGuard, ProfileKindOutline, p.Kind)
+			return fmt.Errorf("profiles[%d]: kind must be one of %s, got %q", i, strings.Join(profileKinds, ", "), p.Kind)
 		}
 		if err := ValidateProfileName(p.Name); err != nil {
 			return fmt.Errorf("profiles[%d]: %w", i, err)

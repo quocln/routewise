@@ -12,7 +12,7 @@ import (
 )
 
 // tunnelKind is everything the daemon knows that differs between kinds of
-// built-in VPN (WireGuard, Outline). Code that used to branch on the kind asks
+// built-in VPN (WireGuard, Outline, a proxy). Code that used to branch on the kind asks
 // the kind from tunnelKinds instead, so a new kind is one type and one registry
 // entry; config.ProfileKinds lists the kinds a profile may have, and a test
 // keeps the registry in step with it.
@@ -60,6 +60,8 @@ type profileSecret struct {
 var tunnelKinds = map[string]tunnelKind{
 	config.ProfileKindWireGuard: wireguardKind{},
 	config.ProfileKindOutline:   outlineKind{},
+	config.ProfileKindSOCKS5:    socks5Kind,
+	config.ProfileKindHTTP:      httpProxyKind,
 }
 
 // kindOf returns the registered kind, and false for one nothing implements.
@@ -105,7 +107,7 @@ func defaultProfileName(kind, label string) string {
 func secretForKind(kind, wireguardConfig, accessKey string) (string, error) {
 	k, ok := kindOf(kind)
 	if !ok {
-		return "", fmt.Errorf("%w: kind must be %q or %q", api.ErrRejected, config.ProfileKindWireGuard, config.ProfileKindOutline)
+		return "", fmt.Errorf("%w: kind must be one of %s", api.ErrRejected, strings.Join(config.ProfileKinds(), ", "))
 	}
 	return k.pickSecret(wireguardConfig, accessKey)
 }

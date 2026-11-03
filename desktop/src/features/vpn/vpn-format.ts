@@ -1,6 +1,7 @@
 import type { ProfileInfo, ProfileStats, StatusResult } from "@/lib/api/types.gen";
 
-export type ProfileKind = "wireguard" | "outline" | "unknown";
+export type ProxyKind = "socks5" | "http";
+export type ProfileKind = "wireguard" | "outline" | ProxyKind | "unknown";
 export type ProfileState =
   | "disconnected"
   | "connecting"
@@ -9,7 +10,13 @@ export type ProfileState =
   | "needsCredentials"
   | "unknown";
 
-const KIND_TITLES: Record<ProfileKind, string> = { wireguard: "WireGuard", outline: "Outline", unknown: "VPN" };
+const KIND_TITLES: Record<ProfileKind, string> = {
+  wireguard: "WireGuard",
+  outline: "Outline",
+  socks5: "SOCKS5",
+  http: "HTTP proxy",
+  unknown: "VPN",
+};
 const STATE_LABELS: Record<ProfileState, string> = {
   disconnected: "Disconnected",
   connecting: "Connecting",
@@ -21,7 +28,12 @@ const STATE_LABELS: Record<ProfileState, string> = {
 
 /** The kind of a profile; one a newer helper adds reads as `unknown`. */
 export function profileKind(profile: Pick<ProfileInfo, "kind">): ProfileKind {
-  return profile.kind === "wireguard" || profile.kind === "outline" ? profile.kind : "unknown";
+  return profile.kind === "wireguard" ||
+    profile.kind === "outline" ||
+    profile.kind === "socks5" ||
+    profile.kind === "http"
+    ? profile.kind
+    : "unknown";
 }
 
 export function kindTitle(kind: ProfileKind): string {
@@ -129,7 +141,7 @@ export function handshakeAge(lastHandshakeMs: number | undefined, nowMs: number 
 export function statsLine(stats: ProfileStats, kind: ProfileKind, nowMs: number = Date.now()): string {
   const parts = [`↓${formatBytes(stats.rxBytes ?? 0)} ↑${formatBytes(stats.txBytes ?? 0)}`];
   const age = handshakeAge(stats.lastHandshakeMs, nowMs);
-  if (kind !== "outline" && age !== undefined) {
+  if (kind === "wireguard" && age !== undefined) {
     parts.push(`handshake ${formatAgo(age)}`);
   } else if (kind === "wireguard") {
     parts.push("handshake never");
@@ -155,4 +167,42 @@ export function accessKeyProblem(key: string): string | null {
   const prefix = KEY_PREFIXES.find((p) => trimmed.toLowerCase().startsWith(p));
   if (!prefix) return "The key must start with ss:// or ssconf://.";
   return trimmed.length > prefix.length ? null : "The key is incomplete.";
+}
+
+export interface ProxyFields {
+  host: string;
+  port: string;
+  username: string;
+  password: string;
+}
+
+/** Client-side check of a proxy; the helper parses the address for real. */
+export function proxyProblem({ host, port, username, password }: ProxyFields): string | null {
+  if (host.trim() === "") return "Enter the proxy's host.";
+  if (/[\s/@?#]/.test(host.trim())) return "Enter only the host, such as 127.0.0.1 or proxy.example.com.";
+  const portNumber = Number(port.trim());
+  if (!/^\d+$/.test(port.trim()) || portNumber < 1 || portNumber > 65535) return "The port must be between 1 and 65535.";
+  if ((username === "") !== (password === "")) return "Enter both a username and a password, or neither.";
+  return null;
+}
+
+/** The address the helper stores, with the username and password percent-encoded. */
+export function proxyAddress(kind: ProxyKind, { host, port, username, password }: ProxyFields): string {
+  const trimmed = host.trim().replace(/^\[|\]$/g, "");
+  const name = trimmed.includes(":") ? `[${trimmed}]` : trimmed;
+  const login = username === "" ? "" : `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`;
+  return `${kind}://${login}${name}:${port.trim()}`;
+}
+
+/**
+ * Whether a host is reachable only from this machine or its network. A name counts as
+ * public unless it is localhost, since where it leads is not known here.
+ */
+export function isLocalHost(host: string): boolean {
+  const name = host.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (name === "localhost" || name === "::1") return true;
+  const octets = name.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return false;
+  const [a, b] = octets;
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
 }

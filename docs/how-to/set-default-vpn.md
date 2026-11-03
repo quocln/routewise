@@ -50,6 +50,7 @@ The VPN tab says why when one of these applies:
 
 - A WireGuard profile whose `AllowedIPs` do not cover everything (`0.0.0.0/0`).
 - On Linux, a VPN app that steers traffic with a policy rule, such as `wg-quick`. Use a built-in WireGuard profile.
+- A proxy on this machine, such as `ssh -D`.
 - `routing.mode` set to `additive`.
 
 ## Side effects on macOS

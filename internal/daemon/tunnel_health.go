@@ -88,6 +88,8 @@ func checkHandshake(last time.Time, ok bool, now time.Time) error {
 type healthPolicy struct {
 	interval time.Duration
 	failures int
+	// conclusive, if set, picks out failures that one check is enough to believe.
+	conclusive func(error) bool
 }
 
 type healthState int
@@ -123,7 +125,8 @@ func (h *healthTracker) observe(err error) bool {
 		return false
 	}
 	h.fails++
-	if h.fails >= h.policy.failures && h.state != healthDown {
+	conclusive := h.policy.conclusive != nil && h.policy.conclusive(err)
+	if (conclusive || h.fails >= h.policy.failures) && h.state != healthDown {
 		h.state = healthDown
 		return true
 	}

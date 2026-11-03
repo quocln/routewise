@@ -62,6 +62,8 @@ type Options struct {
 	Resolver Resolver
 	// NewDialer builds the Shadowsocks dialer. Defaults to NewShadowsocksDialer.
 	NewDialer DialerFactory
+	// Label names the tunnel in its log lines. Defaults to "outline".
+	Label string
 	// CreateTUN opens the device. Defaults to tunnelnet.CreateTUN.
 	// Tests inject an in-memory device so no root is needed.
 	CreateTUN func(mtu int) (tun.Device, error)
@@ -92,9 +94,11 @@ type Stats struct {
 	UDPEvictions uint64
 }
 
-// Tunnel is a running Outline tunnel bound to a helper-owned utun.
+// Tunnel is a running tunnel bound to a helper-owned utun: Outline's, or another
+// protocol's through StartWithDialer.
 type Tunnel struct {
 	name   string
+	label  string
 	server netip.AddrPort
 	log    *slog.Logger
 	idle   time.Duration
@@ -148,17 +152,48 @@ func Start(ctx context.Context, key Key, opts Options) (*Tunnel, error) {
 	if err := key.validate(); err != nil {
 		return nil, err
 	}
+	if err := opts.applyDefaults(); err != nil {
+		return nil, err
+	}
+	// Resolve and build the dialer before touching the system so a bad host
+	// creates nothing.
+	server, err := resolveServer(ctx, opts.Resolver, key)
+	if err != nil {
+		return nil, err
+	}
+	dialer, err := opts.NewDialer(key, server)
+	if err != nil {
+		return nil, err
+	}
+	return startTunnel(ctx, server, dialer, opts)
+}
+
+// StartWithDialer brings up a tunnel whose flows leave through dialer, for a protocol
+// other than Shadowsocks. server is where dialer connects, which the caller must keep
+// out of the tunnel's routes. Otherwise it is Start.
+func StartWithDialer(ctx context.Context, server netip.AddrPort, dialer Dialer, opts Options) (*Tunnel, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := opts.applyDefaults(); err != nil {
+		return nil, err
+	}
+	return startTunnel(ctx, server, dialer, opts)
+}
+
+// applyDefaults fills what opts leaves unset, and checks what it sets.
+func (opts *Options) applyDefaults() error {
 	if opts.MTU == 0 {
 		opts.MTU = DefaultMTU
 	}
 	if opts.MTU < 576 || opts.MTU > 9000 {
-		return nil, fmt.Errorf("mtu %d out of range", opts.MTU)
+		return fmt.Errorf("mtu %d out of range", opts.MTU)
 	}
 	if !opts.Address.IsValid() {
 		opts.Address = DefaultAddress
 	}
 	if !opts.Address.Is4() {
-		return nil, fmt.Errorf("tunnel address %s must be IPv4", opts.Address)
+		return fmt.Errorf("tunnel address %s must be IPv4", opts.Address)
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -187,18 +222,13 @@ func Start(ctx context.Context, key Key, opts Options) (*Tunnel, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-
-	// Resolve and build the dialer before touching the system so a bad host
-	// creates nothing.
-	server, err := resolveServer(ctx, opts.Resolver, key)
-	if err != nil {
-		return nil, err
+	if opts.Label == "" {
+		opts.Label = "outline"
 	}
-	dialer, err := opts.NewDialer(key, server)
-	if err != nil {
-		return nil, err
-	}
+	return nil
+}
 
+func startTunnel(ctx context.Context, server netip.AddrPort, dialer Dialer, opts Options) (*Tunnel, error) {
 	dev, err := opts.CreateTUN(opts.MTU)
 	if err != nil {
 		return nil, fmt.Errorf("create tunnel device: %w", err)
@@ -211,8 +241,9 @@ func Start(ctx context.Context, key Key, opts Options) (*Tunnel, error) {
 
 	t := &Tunnel{
 		name: name, server: server, idle: opts.UDPIdleTimeout,
-		log: opts.Logger.With("component", "outline-tunnel", "interface", name),
-		dev: dev, dialer: dialer, done: make(chan struct{}),
+		label: opts.Label,
+		log:   opts.Logger.With("component", opts.Label+"-tunnel", "interface", name),
+		dev:   dev, dialer: dialer, done: make(chan struct{}),
 		udp: newUDPFlowTable(opts.MaxUDPFlows), now: opts.Now,
 	}
 	t.ctx, t.cancel = context.WithCancel(context.Background())
@@ -236,7 +267,7 @@ func Start(ctx context.Context, key Key, opts Options) (*Tunnel, error) {
 		!t.spawn(func() { drainEvents(t.ctx, dev.Events()) }) {
 		return fail("start packet pumps", errors.New("tunnel stopped"))
 	}
-	t.log.Info("outline tunnel up", "server", server.String(), "address", opts.Address.String(), "mtu", opts.MTU)
+	t.log.Info(t.label+" tunnel up", "server", server.String(), "address", opts.Address.String(), "mtu", opts.MTU)
 	return t, nil
 }
 
@@ -304,7 +335,7 @@ func (t *Tunnel) Stop() error {
 			t.ns.close()
 		}
 		t.wg.Wait()
-		t.log.Info("outline tunnel down")
+		t.log.Info(t.label + " tunnel down")
 	})
 	return t.stopErr
 }
@@ -327,7 +358,7 @@ func (t *Tunnel) spawn(fn func()) bool {
 		// of fn have already run by the time the panic reaches this frame.
 		defer func() {
 			if r := recover(); r != nil {
-				t.log.Error("outline tunnel goroutine panicked", "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
+				t.log.Error(t.label+" tunnel goroutine panicked", "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
 				t.recordError(errors.New("internal error in a tunnel goroutine"))
 			}
 		}()
@@ -366,7 +397,7 @@ func (t *Tunnel) recordError(err error) {
 	}
 	t.errMu.Unlock()
 	if logIt {
-		t.log.Warn("outline tunnel error", "err", err, "suppressed_since_last", suppressed)
+		t.log.Warn(t.label+" tunnel error", "err", err, "suppressed_since_last", suppressed)
 	}
 }
 

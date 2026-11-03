@@ -23,6 +23,10 @@ var (
 	wireGuardKeyRe = regexp.MustCompile(`[A-Za-z0-9+/]{43}=`)
 	// An Outline access key, and any other ss:// URL, runs to whitespace.
 	shadowsocksURLRe = regexp.MustCompile(`(?i)\bss://\S+`)
+	// A SOCKS5 proxy address can hold a username and password.
+	socks5URLRe = regexp.MustCompile(`(?i)\bsocks5h?://\S+`)
+	// So can an HTTP proxy's, and only then does an http:// URL need hiding.
+	httpLoginURLRe = regexp.MustCompile(`(?i)\bhttps?://[^\s/@]+@\S+`)
 	// The account name in a home directory path.
 	homePathRe = regexp.MustCompile(`/Users/[^/\s"']+`)
 	// An email address, whose domain would otherwise be left half-redacted.
@@ -158,6 +162,8 @@ func (s *Scrubber) String(in string) string {
 	}
 	out = wireGuardKeyRe.ReplaceAllString(out, Redacted)
 	out = shadowsocksURLRe.ReplaceAllString(out, Redacted)
+	out = socks5URLRe.ReplaceAllString(out, Redacted)
+	out = httpLoginURLRe.ReplaceAllString(out, Redacted)
 	out = homePathRe.ReplaceAllString(out, "/Users/"+Redacted)
 	out = emailRe.ReplaceAllString(out, Redacted)
 	out = macRe.ReplaceAllString(out, Redacted)

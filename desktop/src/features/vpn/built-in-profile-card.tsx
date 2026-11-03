@@ -40,6 +40,8 @@ const DOT: Record<ProfileState, string> = {
 const KIND_ICON: Record<ProfileKind, typeof ShieldIcon> = {
   wireguard: ShieldIcon,
   outline: SendIcon,
+  socks5: NetworkIcon,
+  http: NetworkIcon,
   unknown: NetworkIcon,
 };
 
@@ -77,6 +79,7 @@ export function BuiltInProfileCard({
   onEditDomains,
 }: Props) {
   const kind = profileKind(profile);
+  const secretNoun = kind === "socks5" || kind === "http" ? "Proxy" : "Key/Config";
   const state = profileState(profile);
   const title = displayName(profile.name, profile.id);
   const isBusy = actions.busy.has(profile.id);
@@ -108,7 +111,7 @@ export function BuiltInProfileCard({
           ) : null}
           {needsCredentials ? (
             <Button variant="outline" size="sm" disabled={locked} onClick={onReplaceSecret}>
-              Add Key/Config…
+              Add {secretNoun}…
             </Button>
           ) : isRunning(state) ? (
             <Button
@@ -134,7 +137,7 @@ export function BuiltInProfileCard({
               {onEditDomains ? <DropdownMenuItem onClick={onEditDomains}>Edit Domains…</DropdownMenuItem> : null}
               <DropdownMenuItem onClick={onRename}>Rename…</DropdownMenuItem>
               <DropdownMenuItem onClick={onReplaceSecret}>
-                {needsCredentials ? "Add Key/Config…" : "Replace Key/Config…"}
+                {needsCredentials ? `Add ${secretNoun}…` : `Replace ${secretNoun}…`}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onRemove}>

@@ -9,6 +9,8 @@ import (
 
 	"github.com/quocln/routewise/internal/activity"
 	"github.com/quocln/routewise/internal/api"
+	"github.com/quocln/routewise/internal/config"
+	"github.com/quocln/routewise/internal/proxyclient"
 )
 
 // --- the health rules, without a daemon ---
@@ -33,6 +35,20 @@ func TestHandshakeCheckStaysHealthyUpTo180SecondsOld(t *testing.T) {
 		err := checkHandshake(c.last, c.ok, now)
 		if (err != nil) != c.wantErr || errors.Is(err, errNotProvenYet) != c.pending {
 			t.Errorf("%s: err = %v, want error %v, not-proven-yet %v", c.name, err, c.wantErr, c.pending)
+		}
+	}
+}
+
+func TestHealthTrackerBelievesAProxysRefusalAtOnce(t *testing.T) {
+	for _, kind := range []string{config.ProfileKindSOCKS5, config.ProfileKindHTTP} {
+		tr := newHealthTracker(healthPolicyFor(kind))
+		if !tr.observe(proxyclient.ErrAuthRefused) || tr.state != healthDown {
+			t.Errorf("%s: a refused login must show on the first check", kind)
+		}
+		// Silence may be a blip, so it still takes the policy's count.
+		quiet := newHealthTracker(healthPolicyFor(kind))
+		if quiet.observe(errors.New("the proxy did not answer")) || quiet.state != healthConnecting {
+			t.Errorf("%s: one silent check must not change a connecting tunnel", kind)
 		}
 	}
 }

@@ -36,6 +36,8 @@ These edit the **Any VPN** list. Per-VPN lists are edited in the app.
 | `routewise profile list` | Profiles and their state |
 | `routewise profile import-wireguard <file> [--name N] [--auto]` | Import a `.conf` |
 | `routewise profile import-outline [--name N] [--auto]` | Import an access key, from stdin or a hidden prompt |
+| `routewise profile import-socks5 [--name N] [--auto]` | Import a proxy as `socks5://[username:password@]host:port`, from stdin or a hidden prompt |
+| `routewise profile import-http [--name N] [--auto]` | Import a proxy as `http://[username:password@]host:port`, from stdin or a hidden prompt |
 | `routewise profile connect <name\|id>` | Connect |
 | `routewise profile disconnect <name\|id>` | Disconnect |
 | `routewise profile remove <name\|id>` | Remove the profile, its credentials and its list |

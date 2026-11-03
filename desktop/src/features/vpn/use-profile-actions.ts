@@ -29,7 +29,7 @@ export interface ProfileActions {
   remove: (profile: ProfileInfo) => Promise<void>;
   /** Imports a profile and resolves to its id. Rejects with the helper's error. */
   importProfile: (params: ProfileImportParams) => Promise<string>;
-  /** Replaces or adds a profile's WireGuard config or Outline key. Rejects with the helper's error. */
+  /** Replaces or adds a profile's WireGuard config, Outline key or proxy address. Rejects with the helper's error. */
   setSecret: (profile: ProfileInfo, secret: string) => Promise<void>;
 }
 
@@ -37,7 +37,7 @@ export interface ProfileActions {
  * The actions of the built-in VPN list, with the in-flight changes the
  * controls show until the helper confirms them.
  *
- * Secrets (a WireGuard config, an Outline key) pass through `importProfile`
+ * Secrets (a WireGuard config, an Outline key, a proxy password) pass through `importProfile`
  * and `setSecret` into the request params only: never into state, query keys,
  * logs or error messages.
  */

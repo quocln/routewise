@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -111,4 +112,86 @@ func TestUniquenessIsEnforcedForWireGuardOnly(t *testing.T) {
 
 func isRejected(err error) bool {
 	return err != nil && strings.Contains(err.Error(), api.ErrRejected.Error())
+}
+
+func TestSOCKS5Secret(t *testing.T) {
+	if got, err := secretForKind("socks5", "", "socks5://h.example.com:1080"); err != nil || got != "socks5://h.example.com:1080" {
+		t.Errorf("socks5 secret = %q, %v", got, err)
+	}
+	if _, err := secretForKind("socks5", "conf text", ""); err == nil || !strings.Contains(err.Error(), "accessKey") {
+		t.Errorf("a SOCKS5 profile given a .conf = %v", err)
+	}
+	if tunnelKinds["socks5"].displayName() != "SOCKS5" {
+		t.Error("wrong display name")
+	}
+
+	dns, label, err := validateSecret("socks5", "socks5://u:secret-pass@proxy.example.com:1080")
+	if err != nil || label != "proxy.example.com" || len(dns) != 1 {
+		t.Errorf("validateSecret = %v, %q, %v", dns, label, err)
+	}
+	if _, _, err := validateSecret("socks5", "http://u:secret-pass@proxy.example.com:1080"); err == nil {
+		t.Error("another scheme was accepted")
+	} else if strings.Contains(err.Error(), "secret-pass") {
+		t.Errorf("the error repeats the password: %v", err)
+	}
+}
+
+func TestSOCKS5RedactsTheCredentialsHoweverTheyAreWritten(t *testing.T) {
+	const secret = "socks5://proxy-user:pass%40word1@proxy.example.com:1080"
+	text := "failed for " + secret + " with proxy-user pass@word1 proxy-user:pass%40word1"
+	got := redact(text, "socks5", secret)
+	for _, leak := range []string{"proxy-user", "pass@word1", "pass%40word1"} {
+		if strings.Contains(got, leak) {
+			t.Errorf("redact left %q in %q", leak, got)
+		}
+	}
+}
+
+// A route through the LAN to 127.0.0.1 would break a proxy on this machine, and with
+// no server known it cannot take the default VPN role, whose routes would swallow what
+// the proxy connects onward to.
+func TestTransportOfAProxyOnThisMachine(t *testing.T) {
+	for _, tt := range []struct {
+		server    string
+		endpoints int
+		ipv6      bool
+	}{
+		{"203.0.113.9", 1, false},
+		{"192.168.1.5", 1, false},
+		{"127.0.0.1", 0, false},
+		{"::1", 0, false},
+		{"2001:db8::1", 0, true},
+		{"::ffff:203.0.113.9", 1, false},
+	} {
+		addr := netip.MustParseAddr(tt.server)
+		if got := proxyEndpoints(addr); len(got) != tt.endpoints {
+			t.Errorf("%s endpoints = %v", tt.server, got)
+		}
+		if got := proxyIPv6Transport(addr); got != tt.ipv6 {
+			t.Errorf("%s IPv6 transport = %v", tt.server, got)
+		}
+	}
+}
+
+func TestHTTPProxySecret(t *testing.T) {
+	if got, err := secretForKind("http", "", "http://h.example.com:8080"); err != nil || got != "http://h.example.com:8080" {
+		t.Errorf("http secret = %q, %v", got, err)
+	}
+	if _, err := secretForKind("http", "conf text", ""); err == nil || !strings.Contains(err.Error(), "accessKey") {
+		t.Errorf("an HTTP proxy profile given a .conf = %v", err)
+	}
+	dns, label, err := validateSecret("http", "http://u:secret-pass@proxy.example.com:8080")
+	if err != nil || label != "proxy.example.com" || len(dns) != 1 {
+		t.Errorf("validateSecret = %v, %q, %v", dns, label, err)
+	}
+	for _, other := range []string{"socks5://u:secret-pass@proxy.example.com:1080", "https://u:secret-pass@proxy.example.com:8080"} {
+		if _, _, err := validateSecret("http", other); err == nil {
+			t.Errorf("%s was accepted", other)
+		} else if strings.Contains(err.Error(), "secret-pass") {
+			t.Errorf("the error repeats the password: %v", err)
+		}
+	}
+	if got := redact("failed with secret-pass", "http", "http://proxy-user:secret-pass@proxy.example.com:8080"); strings.Contains(got, "secret-pass") {
+		t.Errorf("redact left the password in %q", got)
+	}
 }

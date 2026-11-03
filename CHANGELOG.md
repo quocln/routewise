@@ -12,6 +12,10 @@ Notable changes to RouteWise. The format follows
   on macOS, Linux and Windows.
 - **Exceptions to the default VPN.** Domains, wildcards, IPs and networks under **Except these, which go direct** stay
   off the default VPN. A connected VPN's list still wins.
+- **SOCKS5 proxies as built-in VPNs**, with or without a password. **Add SOCKS5 Proxy…** in the VPN tab, or
+  `routewise profile import-socks5`. Lists, the default VPN and exceptions work as with any other built-in VPN.
+- **HTTP proxies as built-in VPNs**, through `CONNECT`, with or without a password. **Add HTTP Proxy…** in the VPN tab, or
+  `routewise profile import-http`.
 
 ### Changed
 

@@ -124,7 +124,8 @@ func newDefaultVPNController(host defaultVPNHost, logger *slog.Logger) *defaultV
 // carryAllReason explains why s must not carry all traffic, or returns "". An
 // unproven built-in tunnel might not work, and with the routes on it nothing else
 // would either; its server must be known, or the routes would swallow its own
-// transport. A WireGuard peer drops what its AllowedIPs do not cover. A client that
+// transport. A proxy on this machine, such as ssh -D, counts as unknown: what it
+// connects onward to would enter the tunnel it serves. A WireGuard peer drops what its AllowedIPs do not cover. A client that
 // steers by policy rule would loop its transport back in.
 func (s *tunnelSession) carryAllReason(serverKnown func(profileID string) bool) string {
 	if !s.owned {
@@ -137,7 +138,7 @@ func (s *tunnelSession) carryAllReason(serverKnown func(profileID string) bool) 
 		return "not proven to work yet"
 	}
 	if !serverKnown(s.profileID) {
-		return "its server address is not known"
+		return "its server address is not known, or it is on this machine"
 	}
 	for _, p := range route.CatchAllPrefixes() {
 		if reason := s.outsidePrefixReason(p); reason != "" {

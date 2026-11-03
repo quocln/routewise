@@ -65,7 +65,7 @@ func TestValidateStillRejectsBadValues(t *testing.T) {
 
 func TestProfileKindsAreTheKindsAProfileMayHave(t *testing.T) {
 	kinds := ProfileKinds()
-	if !slices.Equal(kinds, []string{ProfileKindWireGuard, ProfileKindOutline}) {
+	if !slices.Equal(kinds, []string{ProfileKindWireGuard, ProfileKindOutline, ProfileKindSOCKS5, ProfileKindHTTP}) {
 		t.Fatalf("ProfileKinds = %v", kinds)
 	}
 	kinds[0] = "mutated"

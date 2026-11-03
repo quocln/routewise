@@ -21,6 +21,8 @@ Unit tests and CI cover all three. This table is what has also run for real, and
 |---|---|---|---|
 | Install and service | Yes | In a VM | Not yet |
 | Built-in WireGuard and Outline | Yes | WireGuard, in a VM | Not yet |
+| Built-in SOCKS5, against a real proxy | Yes, Dante on this machine; a proxy elsewhere not yet | Not yet | Not yet |
+| Built-in HTTP proxy, against a real proxy | Yes, tinyproxy on this machine; a proxy elsewhere not yet | Not yet | Not yet |
 | Wildcard routing and DNS clearing | Yes | Not recorded | Not yet |
 | VPN apps, as allowed clients | Not recently | OpenVPN and wg-quick, in a VM | Not yet |
 | Scan for VPN apps and Add app, against a helper | Scan, with no VPN app installed; Add app not yet | Not yet | Not yet |

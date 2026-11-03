@@ -21,7 +21,7 @@ Linux's socket is open to all users, because no group is shared by every desktop
 |---|---|
 | Another local account reroutes traffic | Peer check on every change |
 | Another local account reads what you looked up | Private reads need the console user |
-| Secrets leak | Credentials stay in the root-only database. Not returned by RPC, exports or logs. Outline keys are not accepted as arguments |
+| Secrets leak | Credentials stay in the root-only database. Not returned by RPC, exports or logs. Outline keys and proxy addresses are not accepted as arguments |
 | A hostile config or journal | Files are root-only. Journals are checked for owner, mode and size before being trusted |
 | A swapped system tool | Tools run by absolute path. Each must be a root-owned regular file, not writable by others, checked every time |
 | Routing that cuts off the machine | Entries overlapping the LAN are refused, and one route per destination is enforced across VPNs |

@@ -504,7 +504,8 @@ type ProfileInfo struct {
 }
 
 // ProfileImportParams is the request body of profiles.import. Exactly one of
-// WireguardConfig (kind "wireguard") or AccessKey (kind "outline") carries the
+// WireguardConfig (kind "wireguard") or AccessKey (kind "outline", or "socks5" or
+// "http" as a URL of that scheme) carries the
 // secret, which is validated by parsing and never echoed.
 type ProfileImportParams struct {
 	Kind            string `json:"kind"`
