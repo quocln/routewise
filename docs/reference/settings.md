@@ -22,6 +22,7 @@ authoritative list.
 | `routing.allow_ipv6` | `false` | At once | Let IPv6 through instead of blocking it. See [IPv6](../explanation/routing.md#ipv6) |
 | `routing.default_vpn` | none | At once | Client ID of the [default VPN](../how-to/set-default-vpn.md). Needs `inverted` |
 | `routing.default_vpn_fallback` | none | At once | Client ID that takes over while it is down. None means direct |
+| `routing.default_vpn_except` | none | At once | Domains, wildcards, IPs and networks that go direct instead of through the default VPN. A connected VPN's list still wins |
 
 ## History
 

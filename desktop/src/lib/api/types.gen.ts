@@ -557,6 +557,11 @@ export interface Settings {
    */
   defaultVpnFallback: string;
   /**
+   * DefaultVPNExcept mirrors routing.default_vpn_except: the domains, wildcards,
+   * IPs and networks that go direct instead of through the default VPN.
+   */
+  defaultVpnExcept: string[];
+  /**
    * AllowedVPNClients are the VPN clients RouteWise may manage.
    */
   allowedVpnClients: VPNClient[];
@@ -584,6 +589,10 @@ export interface SetSettingsParams {
    */
   defaultVpn?: string;
   defaultVpnFallback?: string;
+  /**
+   * DefaultVPNExcept replaces the whole list; an empty list clears it.
+   */
+  defaultVpnExcept?: string[];
 }
 /**
  * ProfileKind names a runtime profile of the helper.

@@ -372,6 +372,69 @@ describe("VpnTab", () => {
         expect(callsTo("settings.set")[0].params).toEqual({ defaultVpn: aws.id });
       });
 
+      describe("exceptions", () => {
+        function setup(over: Record<string, Handler>) {
+          serve(over);
+          renderTab();
+        }
+
+        const withDefault = (defaultVpnExcept: string[]) =>
+          settings({ allowedVpnClients: [aws, builtIn], defaultVpn: aws.id, defaultVpnExcept });
+
+        it("adds an entry to the list the helper holds", async () => {
+          const user = userEvent.setup();
+          setup({
+            "settings.get": () => withDefault(["203.0.113.9"]),
+            "settings.set": () => withDefault(["203.0.113.9", "bank.example.com"]),
+          });
+          const box = await screen.findByRole("textbox", { name: "Except these, which go direct" });
+          await waitFor(() => expect(box).toBeEnabled());
+          await user.type(box, " bank.example.com {Enter}");
+          await waitFor(() =>
+            expect(callsTo("settings.set")[0].params).toEqual({ defaultVpnExcept: ["203.0.113.9", "bank.example.com"] }),
+          );
+          await waitFor(() => expect(box).toHaveValue(""));
+        });
+
+        it("removes an entry", async () => {
+          const user = userEvent.setup();
+          setup({
+            "settings.get": () => withDefault(["203.0.113.9", "bank.example.com"]),
+            "settings.set": () => withDefault(["bank.example.com"]),
+          });
+          const remove = await screen.findByRole("button", { name: "Remove 203.0.113.9" });
+          await waitFor(() => expect(remove).toBeEnabled());
+          await user.click(remove);
+          await waitFor(() => expect(callsTo("settings.set")[0].params).toEqual({ defaultVpnExcept: ["bank.example.com"] }));
+        });
+
+        it("keeps a refused entry in the box and says why", async () => {
+          const user = userEvent.setup();
+          setup({
+            "settings.get": () => withDefault([]),
+            "settings.set": () => {
+              throw { kind: "remote", code: -32602, message: "invalid pattern" };
+            },
+          });
+          const box = await screen.findByRole("textbox", { name: "Except these, which go direct" });
+          await waitFor(() => expect(box).toBeEnabled());
+          await user.type(box, "*.com{Enter}");
+          expect(await screen.findByText(/Could not change the default VPN/)).toBeInTheDocument();
+          expect(box).toHaveValue("*.com");
+        });
+
+        it("stays off until a default VPN is chosen", async () => {
+          setup({ "settings.get": () => settings({ allowedVpnClients: [aws], defaultVpnExcept: [] }) });
+          expect(await screen.findByRole("textbox", { name: "Except these, which go direct" })).toBeDisabled();
+        });
+
+        it("is hidden from a helper that does not report them", async () => {
+          setup({ "settings.get": () => settings({ allowedVpnClients: [aws], defaultVpn: aws.id }) });
+          await screen.findByRole("combobox", { name: "Default VPN" });
+          expect(screen.queryByRole("textbox", { name: "Except these, which go direct" })).toBeNull();
+        });
+      });
+
       it("keeps the fallback choice off until a default VPN is chosen", async () => {
         serve({ "settings.get": () => settings({ allowedVpnClients: [aws, builtIn] }) });
         renderTab();

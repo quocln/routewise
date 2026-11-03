@@ -113,7 +113,14 @@ type RoutingConfig struct {
 	// DefaultVPNFallback is the client ID of the allowed VPN that takes over
 	// while DefaultVPN is down. Empty sends that traffic direct.
 	DefaultVPNFallback string `yaml:"default_vpn_fallback,omitempty" mapstructure:"default_vpn_fallback"`
+	// DefaultVPNExcept lists the domains, wildcards, IPs and networks that go
+	// direct instead of through the default VPN. A VPN list that claims one
+	// still wins while that VPN is connected.
+	DefaultVPNExcept []string `yaml:"default_vpn_except,omitempty" mapstructure:"default_vpn_except"`
 }
+
+// ExceptRules returns DefaultVPNExcept as list entries.
+func (r RoutingConfig) ExceptRules() []DomainRule { return patternRules(r.DefaultVPNExcept) }
 
 // VPNRoute is an allowed VPN client and the domains that go only through it.
 // When that VPN is not connected, its domains go direct.
@@ -300,6 +307,7 @@ func (c *Config) Clone() *Config {
 	out := *c
 	out.Domains = append([]DomainRule(nil), c.Domains...)
 	out.DNS.Servers = append([]string(nil), c.DNS.Servers...)
+	out.Routing.DefaultVPNExcept = append([]string(nil), c.Routing.DefaultVPNExcept...)
 	out.VPNs = make([]VPNRoute, len(c.VPNs))
 	for i, v := range c.VPNs {
 		out.VPNs[i] = VPNRoute{Client: v.Client, Domains: append([]DomainRule(nil), v.Domains...)}
@@ -432,6 +440,9 @@ func (c *Config) Validate() error {
 // be one the helper may act on as root.
 func (c *Config) ValidateAllowingNoDomains() error {
 	if err := validateDomainList("domain", c.Domains); err != nil {
+		return err
+	}
+	if err := validateDomainList("routing.default_vpn_except", c.Routing.ExceptRules()); err != nil {
 		return err
 	}
 	if err := validateProfiles(c.Profiles); err != nil {

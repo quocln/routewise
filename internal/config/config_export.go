@@ -65,6 +65,8 @@ type ExportRouting struct {
 	// also allow the client drops them.
 	DefaultVPN         string `json:"defaultVpn,omitempty"`
 	DefaultVPNFallback string `json:"defaultVpnFallback,omitempty"`
+	// DefaultVPNExcept lists what goes direct instead of through the default VPN.
+	DefaultVPNExcept []string `json:"defaultVpnExcept,omitempty"`
 }
 
 // ExportVPN is one allowed VPN client and its domains.
@@ -90,6 +92,7 @@ func NewExport(cfg *Config, now time.Time) Export {
 			AllowIPv6:          cfg.Routing.AllowIPv6,
 			DefaultVPN:         cfg.Routing.DefaultVPN,
 			DefaultVPNFallback: cfg.Routing.DefaultVPNFallback,
+			DefaultVPNExcept:   slices.Clone(cfg.Routing.DefaultVPNExcept),
 		},
 		Domains: rulePatterns(cfg.Domains),
 		VPNs:    make([]ExportVPN, 0, len(cfg.VPNs)),
@@ -130,6 +133,7 @@ func (e Export) Apply(base *Config) (*Config, error) {
 	next.Routing.AllowIPv6 = e.Routing.AllowIPv6
 	next.Routing.DefaultVPN = e.Routing.DefaultVPN
 	next.Routing.DefaultVPNFallback = e.Routing.DefaultVPNFallback
+	next.Routing.DefaultVPNExcept = rulePatterns(NormalizeDomains(patternRules(e.Routing.DefaultVPNExcept)))
 	next.History = DefaultConfig().History
 	if e.History != nil {
 		next.History = HistoryConfig{Enabled: e.History.Enabled, RetentionDays: e.History.RetentionDays}

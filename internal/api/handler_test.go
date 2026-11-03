@@ -31,7 +31,8 @@ type MockDaemon struct {
 	domains  []string
 	revision uint64
 	// mutateErr, when set, is returned by every mutation.
-	mutateErr error
+	mutateErr        error
+	defaultVPNExcept []string
 
 	useVPNDNS                      bool
 	allowIPv6                      bool
@@ -221,6 +222,14 @@ func (m *MockDaemon) SetAllowIPv6(allowed bool) error {
 		return m.mutateErr
 	}
 	m.allowIPv6 = allowed
+	return nil
+}
+
+func (m *MockDaemon) SetDefaultVPNExcept(patterns []string) error {
+	if m.mutateErr != nil {
+		return m.mutateErr
+	}
+	m.defaultVPNExcept = patterns
 	return nil
 }
 

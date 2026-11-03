@@ -77,6 +77,7 @@ func (d *Daemon) ensureOwnedDNS(gen *generation, s *tunnelSession) {
 				d.refuseOwnedDNS(s, server, refusedByProfile+other.client.Name)
 				continue
 			}
+			d.defaultVPN.yieldHostLocked(server)
 			if err := s.manager.AddRoute(server, vpnDNSRouteLabel, true); err != nil {
 				if errors.Is(err, route.ErrRouteOwnedElsewhere) {
 					d.refuseOwnedDNS(s, server, "it is already routed through another tunnel")

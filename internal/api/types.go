@@ -316,6 +316,9 @@ type Settings struct {
 	// DefaultVPNFallback mirrors routing.default_vpn_fallback: the client ID of
 	// the VPN that takes over while DefaultVPN is down. Empty goes direct.
 	DefaultVPNFallback string `json:"defaultVpnFallback"`
+	// DefaultVPNExcept mirrors routing.default_vpn_except: the domains, wildcards,
+	// IPs and networks that go direct instead of through the default VPN.
+	DefaultVPNExcept []string `json:"defaultVpnExcept"`
 	// AllowedVPNClients are the VPN clients RouteWise may manage.
 	AllowedVPNClients []VPNClient `json:"allowedVpnClients"`
 	// HistoryEnabled mirrors history.enabled: record new outbound connections.
@@ -335,6 +338,8 @@ type SetSettingsParams struct {
 	// Clearing the default VPN clears its fallback too.
 	DefaultVPN         *string `json:"defaultVpn,omitempty"`
 	DefaultVPNFallback *string `json:"defaultVpnFallback,omitempty"`
+	// DefaultVPNExcept replaces the whole list; an empty list clears it.
+	DefaultVPNExcept *[]string `json:"defaultVpnExcept,omitempty"`
 }
 
 // ProfileKind names a runtime profile of the helper.

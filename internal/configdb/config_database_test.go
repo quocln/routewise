@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -37,6 +38,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	cfg.Routing.AllowIPv6 = true
 	cfg.Routing.DefaultVPN = testenv.Exe("/opt/homebrew/sbin/openvpn")
 	cfg.Routing.DefaultVPNFallback = wireGuard
+	cfg.Routing.DefaultVPNExcept = []string{"bank.example.com", "10.20.0.0/16"}
 	cfg.Routing.Mode = config.RoutingModeAdditive
 	if err := d.Save(cfg); err != nil {
 		t.Fatal(err)
@@ -54,6 +56,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	if got.Routing.DefaultVPN != testenv.Exe("/opt/homebrew/sbin/openvpn") || got.Routing.DefaultVPNFallback != wireGuard {
 		t.Errorf("default VPN after a round trip = %q, fallback %q", got.Routing.DefaultVPN, got.Routing.DefaultVPNFallback)
+	}
+	if !slices.Equal(got.Routing.DefaultVPNExcept, cfg.Routing.DefaultVPNExcept) {
+		t.Errorf("exceptions after a round trip = %v", got.Routing.DefaultVPNExcept)
 	}
 	if !got.DNS.UseVPNDNS || !got.Routing.AllowIPv6 || got.Routing.Mode != config.RoutingModeAdditive || got.Daemon.PidFile != cfg.Daemon.PidFile {
 		t.Errorf("settings not round-tripped: %+v", got)

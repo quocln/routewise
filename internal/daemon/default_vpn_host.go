@@ -54,6 +54,20 @@ func (d *Daemon) SetDefaultVPN(client, fallback *string) error {
 	return nil
 }
 
+// SetDefaultVPNExcept replaces what goes direct instead of through the default VPN,
+// saves it, and moves the routes at the next sync.
+func (d *Daemon) SetDefaultVPNExcept(patterns []string) error {
+	d.mutationMu.Lock()
+	defer d.mutationMu.Unlock()
+
+	if _, err := d.store.SetDefaultVPNExcept(patterns); err != nil {
+		return classifyConfigError(err)
+	}
+	d.logger.Info("default VPN exceptions changed", "count", len(patterns))
+	d.TriggerSync()
+	return nil
+}
+
 func (d *Daemon) defaultVPNJournalPath() string {
 	return filepath.Join(filepath.Dir(d.routeManager.JournalPath()), defaultVPNJournalName)
 }
@@ -77,3 +91,4 @@ func (d *Daemon) localPrefixes() []netip.Prefix      { return d.hooks.localPrefi
 func (d *Daemon) serverKnown(profileID string) bool  { return d.tunnels.serverKnown(profileID) }
 func (d *Daemon) ipv6TransportNames() []string       { return d.tunnels.ipv6TransportNames(d.store.Policy()) }
 func (d *Daemon) ipv6Allowed() bool                  { return d.allowIPv6.Load() }
+func (d *Daemon) requestSync()                       { d.TriggerSync() }

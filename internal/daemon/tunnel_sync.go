@@ -67,6 +67,7 @@ func (d *Daemon) syncRoutes(gen *generation) {
 		// The default VPN moves first: resolving a name can go through its routes,
 		// and would wait on a tunnel that just died.
 		d.reconcileDefaultVPN(gen)
+		d.resolveExceptions(gen)
 
 		// Read before the sessions: a health change after this point makes the
 		// plan stale, and topologyUnchangedLocked discards it.
@@ -254,6 +255,10 @@ func (d *Daemon) applyPlansLocked(gen *generation, sessions []*tunnelSession, po
 		total += len(plan.hosts) + len(plan.nets)
 	}
 
+	// A list takes what it wants from the default VPN's exceptions, which the kernel
+	// would otherwise refuse it, or which would outrank its network route.
+	d.defaultVPN.yieldPlannedLocked(routePlans)
+
 	for _, plan := range routePlans {
 		if d.syncSession(plan.session, plan.firstHosts, plan.firstNets) {
 			more = true
@@ -269,6 +274,12 @@ func (d *Daemon) applyPlansLocked(gen *generation, sessions []*tunnelSession, po
 			if d.syncSession(plan.session, plan.hosts, plan.nets) {
 				more = true
 			}
+		}
+	}
+	if !more {
+		// What a VPN just gave up is the exceptions' to take.
+		if problem := d.defaultVPN.refreshExceptionsLocked(); problem != "" {
+			d.logger.Warn("default VPN exceptions", "problem", problem)
 		}
 	}
 	return total, more

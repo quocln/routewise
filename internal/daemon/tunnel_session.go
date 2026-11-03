@@ -405,10 +405,11 @@ func (d *Daemon) hasWildcardPatterns() bool {
 	return d.store.Policy().hasWildcards
 }
 
-// matchesWildcard reports whether name falls under a wildcard pattern that a
-// connected tunnel routes. The forwarder calls it for every query.
+// matchesWildcard reports whether the answer for name needs a route before the
+// app gets it: a wildcard pattern a connected tunnel routes, or a name excepted
+// from the default VPN. The forwarder calls it for every query.
 func (d *Daemon) matchesWildcard(name string) bool {
-	return d.ownerFor(name) != nil
+	return d.ownerFor(name) != nil || d.defaultVPN.exceptsName(name)
 }
 
 // upstreamsFor lists the server groups to resolve name through: the owning

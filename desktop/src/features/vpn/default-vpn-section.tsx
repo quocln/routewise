@@ -5,6 +5,7 @@ import type { SetSettingsParams, Settings, StatusResult, VPNClient } from "@/lib
 import { OptionSelect } from "@/features/activity/option-select";
 import { queryKeys } from "@/lib/rpc/queries";
 import { rpc } from "@/lib/rpc/rpc-client";
+import { DefaultVPNExceptions } from "./default-vpn-exceptions";
 import { helperFeatureErrorMessage } from "./vpn-errors";
 import { useHelperReachable } from "./vpn-queries";
 
@@ -55,6 +56,7 @@ export function DefaultVPNSection({
 
   // The helper reports the setting only from the version that has it.
   const supported = typeof settings?.defaultVpn === "string";
+  const exceptionsSupported = Array.isArray(settings?.defaultVpnExcept);
   const chosen = save.isPending ? (save.variables.defaultVpn ?? settings?.defaultVpn) : settings?.defaultVpn;
   const fallback = save.isPending
     ? (save.variables.defaultVpnFallback ?? settings?.defaultVpnFallback)
@@ -101,6 +103,13 @@ export function DefaultVPNSection({
         Traffic that is in no list goes through this VPN. Listed domains keep their own VPN; while that VPN is down they
         follow the default VPN too. IPv6 is blocked while a default VPN carries traffic, unless you allow it in Settings.
       </p>
+      {exceptionsSupported ? (
+        <DefaultVPNExceptions
+          entries={settings?.defaultVpnExcept ?? []}
+          disabled={disabled || !chosen}
+          onChange={(next) => save.mutateAsync({ defaultVpnExcept: next })}
+        />
+      ) : null}
       {routeText ? <p className="text-xs text-muted-foreground">{routeText}</p> : null}
       {status?.defaultVpn?.problem ? (
         <p role="alert" className="text-xs text-orange-600 dark:text-orange-400">

@@ -39,6 +39,9 @@ type routingPolicy struct {
 	vpn      []*policyList
 	any      *policyList
 	byClient map[string]*policyList
+	// except is what goes direct instead of through the default VPN. It owns
+	// nothing: see exceptedName.
+	except *policyList
 	// holder maps a pattern written exactly so to the list holding it: the
 	// highest-priority VPN's, else Any ("" is Any VPN). vpnHolder is holder
 	// without the Any VPN list.
@@ -252,6 +255,7 @@ func newRoutingPolicy(cfg *config.Config, revision uint64, prev *routingPolicy) 
 	}
 
 	p.any = newPolicyList(config.AnyVPN, cfg.Domains)
+	p.except = newPolicyList(config.AnyVPN, cfg.Routing.ExceptRules())
 	p.patterns = slices.Clone(p.any.patterns)
 	for _, v := range cfg.VPNs {
 		l := newPolicyList(v.Client, v.Domains)
@@ -362,6 +366,18 @@ func (p *routingPolicy) wildcardOwnerOf(sessions []*tunnelSession, name string) 
 		return nil
 	}
 	return s
+}
+
+// exceptedName reports whether name goes direct instead of through the default VPN:
+// the exception list covers it, and no connected VPN's list claims it. A list keeps
+// its name while its VPN is up, and the exception decides only once it is down.
+// sessions must be in priority order.
+func (p *routingPolicy) exceptedName(sessions []*tunnelSession, name string) bool {
+	if !p.except.matches(name, foldName(name)) {
+		return false
+	}
+	_, owner := p.owningList(sessions, name)
+	return owner == nil
 }
 
 // matchingEntry finds the list entry that covers name or ip, by the order

@@ -80,6 +80,10 @@ export interface ExportRouting {
    */
   defaultVpn?: string;
   defaultVpnFallback?: string;
+  /**
+   * DefaultVPNExcept lists what goes direct instead of through the default VPN.
+   */
+  defaultVpnExcept?: string[];
 }
 /**
  * ExportVPN is one allowed VPN client and its domains.

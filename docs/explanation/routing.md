@@ -53,6 +53,11 @@ Two things go in first, because a mistake here cuts off the whole machine:
 A built-in tunnel takes the role only once proven and with a known server. Any failure that makes the role unsafe sends traffic direct, and it tries again within
 5 seconds. What is reported comes from what is really held.
 
+An exception to the role is a route of its own through the LAN gateway, which outranks the `/2` routes by being longer. A list outranks an exception while the list's VPN
+is connected, even where the kernel would pick the exception, as with an address inside a listed network. Once that VPN is down the exception decides, so the name goes direct instead of into the
+default VPN. A resolver file sends an excepted name's lookups through the forwarder, which routes what an app is told before the app is told it. See
+[decision 0005](../decisions/0005-default-vpn-exceptions.md).
+
 ## IPv6
 
 RouteWise routes IPv4 only, and a browser prefers an IPv6 address when it has one, so a listed name could leave around its VPN. Unless `routing.allow_ipv6` is on, each

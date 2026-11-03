@@ -8,7 +8,7 @@ routewise config import my-routewise.json
 The same actions are in **Settings**, as **Export…** and **Import…**. Omit the file to print to stdout. Import needs `sudo`
 only when the helper is not running.
 
-**What the file holds:** DNS settings, the routing mode and default VPN, every domain list, the allowed VPNs in priority
+**What the file holds:** DNS settings, the routing mode, the default VPN and its exceptions, every domain list, the allowed VPNs in priority
 order, built-in profiles without their secrets, and history settings.
 
 **What it leaves out:** secrets, and machine-specific settings such as the log file. A built-in profile comes back in the

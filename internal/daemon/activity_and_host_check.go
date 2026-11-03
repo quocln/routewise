@@ -318,6 +318,8 @@ func (d *Daemon) CheckHost(host string) (api.HostCheck, error) {
 			if s := sessionOnInterface(sessions, iface); s != nil {
 				addr.Verdict = string(activity.ViaVPN)
 				addr.VPN = s.client.Name
+			} else if d.defaultVPN.exceptions.covers(ip) {
+				addr.Note = exceptionRouteDetail
 			}
 		}
 		result.Addresses = append(result.Addresses, addr)

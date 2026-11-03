@@ -16,7 +16,8 @@ import (
 // suffixes of the tunnels connected right now. The caller must hold
 // mutationMu.
 func (d *Daemon) refreshResolverFilesLocked() {
-	d.applyResolverFilesLocked(wildcardOwners(assignPatterns(d.store.Policy(), d.sessionList())))
+	owners := wildcardOwners(assignPatterns(d.store.Policy(), d.sessionList()))
+	d.applyResolverFilesLocked(append(owners, d.defaultVPN.exceptionSuffixes(owners)...))
 }
 
 // applyResolverFilesLocked makes the resolver files match the wildcard
@@ -24,13 +25,14 @@ func (d *Daemon) refreshResolverFilesLocked() {
 // removes them otherwise. With dns.use_vpn_dns on, a suffix waits until the
 // DNS servers of the tunnel that owns it are known: a lookup answered by a
 // public server before then would return, and macOS would cache, a negative
-// answer for internal names. The caller must hold mutationMu.
+// answer for internal names. A suffix with no owner (one excepted from the default
+// VPN) has no such servers to wait for. The caller must hold mutationMu.
 func (d *Daemon) applyResolverFilesLocked(owners []wildcardOwner) {
 	pending := ""
 	if len(owners) > 0 && d.ensureForwarderLocked() {
 		var ready []string
 		for _, o := range owners {
-			if d.useVPNDNS.Load() && !d.sessionDNSKnown(o.owner) {
+			if o.owner != nil && d.useVPNDNS.Load() && !d.sessionDNSKnown(o.owner) {
 				pending = "waiting for the VPN to publish its DNS servers (dns.use_vpn_dns is on)"
 				continue
 			}
@@ -96,6 +98,7 @@ func (d *Daemon) onWildcardAnswer(name string, ips []netip.Addr, ttl time.Durati
 	}
 	s := d.ownerFor(name)
 	if s == nil {
+		d.routeExceptedAnswer(gen, name, ips, ttl)
 		return
 	}
 
@@ -191,6 +194,7 @@ func (d *Daemon) claimAddressLocked(s *tunnelSession, ip netip.Addr, name string
 		}
 		d.forgetLearned(other, ip)
 	}
+	d.defaultVPN.yieldHostLocked(ip)
 	return true
 }
 
@@ -356,6 +360,7 @@ func (d *Daemon) ensureVPNDNS(gen *generation, s *tunnelSession, allowGuess bool
 // case s adds it when that tunnel lets go. A lower-priority tunnel's route is
 // taken over, and that tunnel waits instead. The caller must hold mutationMu.
 func (d *Daemon) routeDNSServerLocked(s *tunnelSession, server netip.Addr) (wait bool, err error) {
+	d.defaultVPN.yieldHostLocked(server)
 	err = s.manager.AddRoute(server, vpnDNSRouteLabel, true)
 	if !errors.Is(err, route.ErrRouteOwnedElsewhere) {
 		return false, err

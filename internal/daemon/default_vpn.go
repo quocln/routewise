@@ -36,6 +36,9 @@ import (
 //   - IPv6 must not leave around the routes, since RouteWise routes IPv4 only, so
 //     global IPv6 is rejected unless routing.allow_ipv6 is on, or a built-in tunnel
 //     connects over IPv6 and the block would kill it.
+//
+// What the user excepts from the role goes direct through routes of its own: see
+// default_vpn_exceptions.go.
 const (
 	defaultVPNJournalName    = "default-vpn-routes.json"
 	defaultVPNJournalVersion = 2
@@ -52,6 +55,11 @@ type defaultVPNJournal struct {
 	CatchAll      bool     `json:"catch_all,omitempty"`
 	Servers       []string `json:"servers,omitempty"`
 	IPv6Rejected  bool     `json:"ipv6_rejected,omitempty"`
+	// ExceptHosts and ExceptNets are the routes that keep exceptions off the role,
+	// and ExceptInterface the LAN interface they lead through.
+	ExceptHosts     []string `json:"except_hosts,omitempty"`
+	ExceptNets      []string `json:"except_nets,omitempty"`
+	ExceptInterface string   `json:"except_interface,omitempty"`
 }
 
 // defaultVPNRoutes is what the role holds outside the tunnel's own manager. It is
@@ -81,6 +89,7 @@ type defaultVPNHost interface {
 	ipv6Allowed() bool
 	recordActivity(event activity.Event)
 	defaultVPNJournalPath() string
+	requestSync()
 }
 
 // defaultVPNController holds the role: who carries the traffic no list claims, and what
@@ -97,6 +106,9 @@ type defaultVPNController struct {
 	problem     atomic.Pointer[string]
 	ipv6Blocked atomic.Bool
 	held        defaultVPNRoutes
+	exceptions  exceptionRoutes
+	// preparing is true while a pass sets up for a target that has no routes yet.
+	preparing bool
 	// journal records what would outlive a crash of this process.
 	journal *ledger.Ledger[defaultVPNJournal]
 }
@@ -199,6 +211,11 @@ func (c *defaultVPNController) reconcileLocked(gen *generation) {
 		if err != nil {
 			note("could not keep the built-in VPNs' servers out of the default VPN: " + err.Error())
 			target = nil
+		} else {
+			// Before the routes go on, so what is excepted never enters the tunnel.
+			c.preparing = true
+			note(c.refreshExceptionsLocked())
+			c.preparing = false
 		}
 	}
 	for _, s := range sessions {
@@ -236,7 +253,7 @@ func (c *defaultVPNController) reconcileLocked(gen *generation) {
 // caller must hold mutationMu.
 func (c *defaultVPNController) holdsAnything(sessions []*tunnelSession) bool {
 	h := &c.held
-	return len(h.servers) > 0 || h.ipv6Rejected || c.active.Load() != nil ||
+	return len(h.servers) > 0 || h.ipv6Rejected || c.active.Load() != nil || c.exceptions.holdsAny() ||
 		slices.ContainsFunc(sessions, func(s *tunnelSession) bool { return s.manager.CatchAll() })
 }
 
@@ -251,6 +268,11 @@ func (c *defaultVPNController) publish(holder *tunnelSession, problem string) {
 		}
 		c.host.recordActivity(event)
 		c.logger.Info("default VPN changed", "detail", event.Detail, "client", event.Name, "interface", event.Interface)
+		// A pass the timer ran leaves the exceptions' names unresolved and their
+		// resolver files as they were; only a sync sees to those.
+		if (prev == nil) != (holder == nil) && len(c.host.policy().except.patterns) > 0 {
+			c.host.requestSync()
+		}
 	}
 	var prevProblem string
 	if p := c.problem.Swap(&problem); p != nil {
@@ -351,6 +373,7 @@ func (c *defaultVPNController) releaseRoutesLocked() {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultVPNCommandTimeout)
 	defer cancel()
 	table := c.host.routeTable()
+	c.releaseExceptionsLocked(ctx)
 	for addr := range h.servers {
 		if err := table.DeleteHost(ctx, addr); err != nil {
 			c.logger.Error("could not remove a default VPN server route", "address", addr, "error", err)
@@ -384,10 +407,14 @@ func unionAddrs(a, b map[netip.Addr]struct{}) map[netip.Addr]struct{} {
 
 // saveJournal replaces the journal, or removes it with nothing to record.
 func (c *defaultVPNController) saveJournal(catchAll bool, servers map[netip.Addr]struct{}, ipv6Rejected bool) error {
-	if !catchAll && len(servers) == 0 && !ipv6Rejected {
+	exceptHosts, exceptNets := c.exceptions.journalEntries()
+	if !catchAll && len(servers) == 0 && !ipv6Rejected && len(exceptHosts) == 0 && len(exceptNets) == 0 {
 		return c.journal.Remove()
 	}
-	j := defaultVPNJournal{SchemaVersion: defaultVPNJournalVersion, CatchAll: catchAll, IPv6Rejected: ipv6Rejected}
+	j := defaultVPNJournal{
+		SchemaVersion: defaultVPNJournalVersion, CatchAll: catchAll, IPv6Rejected: ipv6Rejected,
+		ExceptHosts: exceptHosts, ExceptNets: exceptNets, ExceptInterface: c.exceptions.iface,
+	}
 	for addr := range servers {
 		j.Servers = append(j.Servers, addr.String())
 	}
@@ -448,6 +475,9 @@ func (c *defaultVPNController) recoverLeftovers() {
 			failed = true
 		}
 	}
+	if c.recoverExceptions(ctx, j) {
+		failed = true
+	}
 	if failed {
 		return
 	}
@@ -487,6 +517,9 @@ func (c *defaultVPNController) carries(ip netip.Addr) *tunnelSession {
 	s := c.active.Load()
 	ip = ip.Unmap()
 	if s == nil || !ip.Is4() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsMulticast() || !c.host.isRegistered(s) {
+		return nil
+	}
+	if c.exceptions.covers(ip) {
 		return nil
 	}
 	if slices.ContainsFunc(c.host.localPrefixes(), func(p netip.Prefix) bool { return p.Contains(ip) }) {

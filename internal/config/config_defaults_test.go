@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestValidateDoesNotModifyTheConfig(t *testing.T) {
 	if cfg.Routing.Mode != "" || cfg.History.RetentionDays != 0 {
 		t.Fatalf("Validate changed the config: mode %q, retention %d", cfg.Routing.Mode, cfg.History.RetentionDays)
 	}
-	if cfg.Routing != before.Routing || cfg.History != before.History {
+	if !reflect.DeepEqual(cfg.Routing, before.Routing) || cfg.History != before.History {
 		t.Fatal("Validate changed the config")
 	}
 }

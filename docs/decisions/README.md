@@ -13,3 +13,4 @@ the old one.
 - [0002 Default VPN Uses /2 Routes](0002-default-vpn-uses-slash-2-routes.md)
 - [0003 Hedged DNS Without Server Memory](0003-hedged-dns-without-server-memory.md)
 - [0004 Helper Structure](0004-helper-structure.md)
+- [0005 Default VPN Exceptions](0005-default-vpn-exceptions.md)

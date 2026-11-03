@@ -52,6 +52,8 @@ type SettingsController interface {
 	// SetDefaultVPN changes the default VPN and its fallback; a nil argument is
 	// left as it is. A client that is not allowed is reported as ErrRejected.
 	SetDefaultVPN(client, fallback *string) error
+	// SetDefaultVPNExcept replaces what goes direct instead of through the default VPN.
+	SetDefaultVPNExcept(patterns []string) error
 	// SetHistory changes history.enabled and history.retention_days; a nil
 	// argument is left as it is. A retention change purges at once.
 	SetHistory(enabled *bool, retentionDays *int) error
@@ -350,6 +352,10 @@ var settingRules = []settingRule{
 		apply: func(d DaemonStatus, p *SetSettingsParams) error {
 			return d.SetDefaultVPN(p.DefaultVPN, p.DefaultVPNFallback)
 		},
+	},
+	{
+		given: func(p *SetSettingsParams) bool { return p.DefaultVPNExcept != nil },
+		apply: func(d DaemonStatus, p *SetSettingsParams) error { return d.SetDefaultVPNExcept(*p.DefaultVPNExcept) },
 	},
 	{
 		given: func(p *SetSettingsParams) bool { return p.UseVPNDNS != nil },

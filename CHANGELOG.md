@@ -10,6 +10,8 @@ Notable changes to RouteWise. The format follows
 
 - **Find VPN apps before they connect.** **Scan for VPN apps** and **Add app...** under **VPN apps**,
   on macOS, Linux and Windows.
+- **Exceptions to the default VPN.** Domains, wildcards, IPs and networks under **Except these, which go direct** stay
+  off the default VPN. A connected VPN's list still wins.
 
 ### Changed
 

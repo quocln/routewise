@@ -22,6 +22,7 @@ var Settings = []Setting{
 	{"routing.allow_ipv6", func(c *Config) any { return &c.Routing.AllowIPv6 }},
 	{"routing.default_vpn", func(c *Config) any { return &c.Routing.DefaultVPN }},
 	{"routing.default_vpn_fallback", func(c *Config) any { return &c.Routing.DefaultVPNFallback }},
+	{"routing.default_vpn_except", func(c *Config) any { return &c.Routing.DefaultVPNExcept }},
 	{"daemon.poll_interval", func(c *Config) any { return &c.Daemon.PollInterval }},
 	{"daemon.pid_file", func(c *Config) any { return &c.Daemon.PidFile }},
 	{"daemon.log_file", func(c *Config) any { return &c.Daemon.LogFile }},

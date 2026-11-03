@@ -753,6 +753,7 @@ func (h *stubDefaultVPNHost) ipv6TransportNames() []string          { return nil
 func (h *stubDefaultVPNHost) ipv6Allowed() bool                     { return false }
 func (h *stubDefaultVPNHost) recordActivity(e activity.Event)       { h.events = append(h.events, e) }
 func (h *stubDefaultVPNHost) defaultVPNJournalPath() string         { return h.journal }
+func (h *stubDefaultVPNHost) requestSync()                          {}
 
 func TestWithNoDefaultVPNAndNothingHeldTheRoleDoesNothing(t *testing.T) {
 	host := &stubDefaultVPNHost{

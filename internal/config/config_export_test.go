@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"github.com/quocln/routewise/internal/testenv"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -152,6 +153,7 @@ func TestExportCarriesTheDefaultVPN(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.VPNs = []VPNRoute{{Client: testenv.Exe("/a")}, {Client: testenv.Exe("/b")}}
 	cfg.Routing.DefaultVPN, cfg.Routing.DefaultVPNFallback = testenv.Exe("/a"), testenv.Exe("/b")
+	cfg.Routing.DefaultVPNExcept = []string{"bank.example.com", "10.20.0.0/16"}
 
 	data, err := json.Marshal(NewExport(cfg, time.Now()))
 	if err != nil {
@@ -167,6 +169,9 @@ func TestExportCarriesTheDefaultVPN(t *testing.T) {
 	}
 	if next.Routing.DefaultVPN != testenv.Exe("/a") || next.Routing.DefaultVPNFallback != testenv.Exe("/b") {
 		t.Errorf("default VPN after import = %q, fallback %q", next.Routing.DefaultVPN, next.Routing.DefaultVPNFallback)
+	}
+	if !slices.Equal(next.Routing.DefaultVPNExcept, cfg.Routing.DefaultVPNExcept) {
+		t.Errorf("exceptions after import = %v, want %v", next.Routing.DefaultVPNExcept, cfg.Routing.DefaultVPNExcept)
 	}
 }
 

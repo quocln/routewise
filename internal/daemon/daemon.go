@@ -111,6 +111,8 @@ type daemonHooks struct {
 	// resolveExact resolves a tunnel's exact domains through that tunnel's
 	// resolver.
 	resolveExact func(ctx context.Context, s *tunnelSession, domains []string) (map[string][]net.IP, error)
+	// resolveExcepted resolves the exact names excepted from the default VPN.
+	resolveExcepted func(ctx context.Context, domains []string) (map[string][]net.IP, error)
 	// flushSystemDNS empties the operating system's DNS cache.
 	flushSystemDNS func(ctx context.Context) error
 	// identifyClient names the program that owns a tunnel.
@@ -428,6 +430,9 @@ func New(cfg *config.Config, persist config.Persister) (*Daemon, error) {
 		},
 		resolveExact: func(ctx context.Context, s *tunnelSession, domains []string) (map[string][]net.IP, error) {
 			return s.resolver.ResolveAll(ctx, domains)
+		},
+		resolveExcepted: func(ctx context.Context, domains []string) (map[string][]net.IP, error) {
+			return d.resolver.ResolveAll(ctx, domains)
 		},
 		systemNameservers: dns.SystemNameservers,
 		identifyClient:    vpnclient.Identify,
@@ -881,6 +886,7 @@ func (d *Daemon) Settings() api.Settings {
 		AllowIPv6:            d.allowIPv6.Load(),
 		DefaultVPN:           d.store.Policy().cfg.Routing.DefaultVPN,
 		DefaultVPNFallback:   d.store.Policy().cfg.Routing.DefaultVPNFallback,
+		DefaultVPNExcept:     append([]string{}, d.store.Policy().cfg.Routing.DefaultVPNExcept...),
 		AllowedVPNClients:    d.AllowedVPNClients(),
 		HistoryEnabled:       d.historyOn.Load(),
 		HistoryRetentionDays: int(d.historyDays.Load()),

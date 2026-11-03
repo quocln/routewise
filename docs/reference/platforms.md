@@ -26,6 +26,7 @@ Unit tests and CI cover all three. This table is what has also run for real, and
 | Scan for VPN apps and Add app, against a helper | Scan, with no VPN app installed; Add app not yet | Not yet | Not yet |
 | Default VPN: move, fallback, direct, return | Yes, with built-in tunnels | Not yet | Not yet |
 | Default VPN with a VPN app | Not yet | Not yet | Not yet |
+| Default VPN exceptions | Yes, with Outline; a helper crash while they are in place not yet | Not yet | Not yet |
 | Default VPN across a change of network | Not yet | Not yet | Not yet |
 | Dashboard and tray figures in the installed app | Not confirmed | Not yet | Not yet |
 | Route changes through the routing socket | Not confirmed | Not applicable | Not applicable |

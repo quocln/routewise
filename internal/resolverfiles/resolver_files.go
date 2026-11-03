@@ -28,6 +28,9 @@ const Marker = "# Managed by RouteWise. Removed automatically when the VPN disco
 // never escape the resolver directory.
 var domainRegex = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$`)
 
+// ValidDomain reports whether Apply accepts d. One it does not fails the whole call.
+func ValidDomain(d string) bool { return domainRegex.MatchString(strings.ToLower(d)) }
+
 // Configurator is the system's split-DNS configuration as the daemon uses it:
 // send lookups for a set of domains to RouteWise's local forwarder, and take
 // that back. Manager, which writes /etc/resolver files, is the macOS

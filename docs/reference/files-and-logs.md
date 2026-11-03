@@ -41,4 +41,4 @@ These record what must be undone after a crash, and the next start clears them:
 |---|---|
 | `transition.json`, `transition-<interface>.json` | Each tunnel's activation |
 | `ipv6-blocked.json` | IPv6 addresses blocked for listed names |
-| `default-vpn-routes.json` | The default VPN's routes, server routes and IPv6 block |
+| `default-vpn-routes.json` | The default VPN's routes, server routes, exception routes and IPv6 block |

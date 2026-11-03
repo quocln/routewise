@@ -228,6 +228,26 @@ func (s *ConfigStore) SetDefaultVPN(client, fallback string) (uint64, error) {
 	})
 }
 
+// SetDefaultVPNExcept saves routing.default_vpn_except, normalized the way a domain
+// list is. A list that changes nothing does not bump the revision.
+func (s *ConfigStore) SetDefaultVPNExcept(patterns []string) (uint64, error) {
+	rules := make([]config.DomainRule, 0, len(patterns))
+	for _, p := range patterns {
+		rules = append(rules, config.DomainRule{Pattern: p})
+	}
+	normalized := make([]string, 0, len(patterns))
+	for _, r := range config.NormalizeDomains(rules) {
+		normalized = append(normalized, r.Pattern)
+	}
+	return s.update(func(next *config.Config) (bool, error) {
+		if slices.Equal(next.Routing.DefaultVPNExcept, normalized) {
+			return false, nil
+		}
+		next.Routing.DefaultVPNExcept = normalized
+		return true, nil
+	})
+}
+
 // SetHistory saves history.enabled and history.retention_days; a nil argument
 // keeps the stored value. A request that changes nothing does not bump the
 // revision.
